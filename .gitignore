@@ -1,0 +1,8 @@
+out/
+.cache/
+.vscode/
+
+CMakePresets.json
+CMakeUserPresets.json
+config.yml
+compile_commands.json
