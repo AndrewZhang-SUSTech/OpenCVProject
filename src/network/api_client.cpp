@@ -1,9 +1,11 @@
-module;
+#include "api_client.hpp"
+#include "../config/config.hpp"
+#include "../utils/crypto.hpp"
+#include "../captcha/captcha.hpp"
+#include "../common/log.hpp"
 
 #include <exception>
 #include <thread>
-#include <ylt/util/tl/expected.hpp>
-#include <ylt/coro_http/coro_http_client.hpp>
 #include <ylt/coro_io/client_pool.hpp>
 #include <nlohmann/json.hpp>
 #include <string>
@@ -11,26 +13,17 @@ module;
 #include <simdjson.h>
 #include <random>
 
-
 #ifdef RESERVATION_SINGLETHREAD_ENABLED
 #include <ylt/coro_io/io_context_pool.hpp>
 #endif
-
-export module Bot.ApiClient;
 
 #ifdef RESERVATION_SINGLETHREAD_ENABLED
 static auto& ctx_pool = coro_io::g_io_context_pool(1);
 #endif
 
-import Bot.Types;
-import Bot.Config;
-import Bot.Utils.Crypto;
-import Bot.Captcha;
-import Bot.Logger;
-
 static inline std::random_device rd{};
 
-export namespace Network {
+namespace Network {
 
     // 全局连接池
     auto client_pool = coro_io::client_pool<coro_http::coro_http_client>::create("https://reservation.sustech.edu.cn");
@@ -64,7 +57,7 @@ export namespace Network {
                     if (j["code"].get<int>() != 200) {
                         co_return tl::unexpected(BotError(fmt::format("Token validation failed: {}", result.resp_body)));
                     }
-                    Logger::info("Token is valid.");
+                    LOG_INFO(logger, "Token is valid.");
                     co_return Result<void>{};
                 }
                 catch (...) {
@@ -141,7 +134,7 @@ export namespace Network {
         {
 	        try
 	        {
-                rethrow_exception(solve_res.getException());
+                std::rethrow_exception(solve_res.getException());
 	        }
 	        catch (const std::exception& e)
 	        {
@@ -191,7 +184,7 @@ export namespace Network {
         if (!pool_res_2) co_return tl::unexpected(pool_error_to_bot_error(pool_res_2.error()));
         if (!pool_res_2.value()) co_return tl::unexpected(pool_res_2.value().error());
 
-        Logger::info("{} is validated.", ctx.point_json);
+        LOG_INFO(logger, "{} is validated.", ctx.point_json);
 
 
         std::string combine = fmt::format("{}---{}", ctx.token, ctx.point_json);

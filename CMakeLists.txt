@@ -135,21 +135,21 @@ CPMAddPackage(
 
 if(MSVC)
     add_compile_options(/bigobj)
+elseif(WIN32 AND (CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang"))
+    add_compile_options(-Wa,-mbig-obj)
 endif()
 
 add_compile_definitions(FMT_HEADER_ONLY=0)
 
-add_library(BotCore)
-target_sources(BotCore PUBLIC
-    FILE_SET CXX_MODULES FILES
-        src/common/types.cppm
-        src/config/config.cppm
-        src/logger/logger.cppm
-        src/network/api_client.cppm
-        src/utils/crypto.cppm
-        src/captcha/captcha.cppm
-        src/reservation/logic.cppm
+add_library(BotCore STATIC
+    src/config/config.cpp
+    src/network/api_client.cpp
+    src/utils/crypto.cpp
+    src/captcha/captcha.cpp
+    src/reservation/logic.cpp
 )
+
+target_include_directories(BotCore PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
 
 foreach(module core imgcodecs imgproc)
     list(APPEND OpenCV_INCLUDE_DIRS ${opencv_SOURCE_DIR}/modules/${module}/include)
@@ -187,13 +187,10 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     yalantinglibs::yalantinglibs
 )
 
-if(NOT MSVC)
-    target_link_options(${PROJECT_NAME} PRIVATE 
-        $<$<CONFIG:Release>:-static-libstdc++ -static-libgcc>
-    )
-    if(WIN32)
-        target_link_options(${PROJECT_NAME} PRIVATE 
-            $<$<CONFIG:Release>:-Wl,-Bstatic -lwinpthread -Wl,-Bdynamic>
-        )
-    endif()
+if(MSVC)
+    target_link_options(${PROJECT_NAME} PRIVATE $<$<CONFIG:Release>:/DEBUG:NONE>)
+elseif(WIN32 AND (CMAKE_CXX_COMPILER_ID STREQUAL "Clang" OR CMAKE_CXX_COMPILER_ID STREQUAL "GNU"))
+    target_link_options(${PROJECT_NAME} PRIVATE $<$<CONFIG:Release>:-static -s>)
+else()
+    target_link_options(${PROJECT_NAME} PRIVATE $<$<CONFIG:Release>:-static-libstdc++ -static-libgcc -s>)
 endif()

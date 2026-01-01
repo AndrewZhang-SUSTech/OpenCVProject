@@ -1,25 +1,15 @@
-module;
-
+#include "crypto.hpp"
 #include <openssl/ssl.h>
 #include <openssl/evp.h>
 #include <openssl/bio.h>
 #include <openssl/buffer.h>
 #include <openssl/aes.h>
-#include <vector>
-#include <ylt/util/tl/expected.hpp>
 #include <cstring>
 #include <memory>
-#include <string_view>
-#include <string>
-#include <cstdint>
-#include <span>
-
-export module Bot.Utils.Crypto;
-import Bot.Types;
 
 using EVP_CIPHER_CTX_ptr = std::unique_ptr<EVP_CIPHER_CTX, decltype(&EVP_CIPHER_CTX_free)>;
 
-export namespace Crypto {
+namespace Crypto {
 
     // Base64 Decode
     Result<std::vector<uint8_t>> base64_decode(std::string_view input) {

@@ -1,21 +1,14 @@
-module;
-
+#include "config.hpp"
+#include "../common/log.hpp"
 #include <yaml-cpp/yaml.h>
 #include <quill/LogMacros.h>
 #include <vector>
-#include <string>
 #include <chrono>
 #include <sstream>
 #include <iomanip>
-#include <ylt/util/tl/expected.hpp>
 #include <fmt/core.h>
 #include "yaml-cpp/emittermanip.h"
 #include <cstdio>
-
-export module Bot.Config;
-
-import Bot.Types;
-import Bot.Logger;
 
 namespace YAML {
     template<>
@@ -33,7 +26,7 @@ namespace YAML {
     };
 }
 
-export namespace Config {
+namespace Config {
     Result<User> load_user_config(const std::string& path) {
         try {
             YAML::Node config = YAML::LoadFile(path);
@@ -153,4 +146,3 @@ export namespace Config {
         }
     }
 }
-

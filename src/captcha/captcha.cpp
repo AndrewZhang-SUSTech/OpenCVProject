@@ -1,18 +1,10 @@
-module;
-
-#include <span>
-#include <ylt/util/tl/expected.hpp>
-#include <cstdint>
+#include "captcha.hpp"
+#include "../common/log.hpp"
 #include <opencv2/opencv.hpp>
 #include <opencv2/imgcodecs.hpp>
 #include <fmt/core.h>
 
-export module Bot.Captcha;
-
-import Bot.Types;
-import Bot.Logger;
-
-export namespace Captcha {
+namespace Captcha {
     Result<int64_t> solve(std::span<uint8_t> jigsaw_bytes, std::span<uint8_t> original_bytes){
         try {
             cv::Mat jigsaw_buf(1, (int)jigsaw_bytes.size(), CV_8UC1, jigsaw_bytes.data());
@@ -81,7 +73,7 @@ export namespace Captcha {
                 return tl::unexpected(BotError("No suitable contour found"));
             }
 
-            Logger::debug("Captcha solved: x position = {}", result);
+            LOG_DEBUG(logger, "Captcha solved: x position = {}", result);
 
             return result;
         }
@@ -91,4 +83,3 @@ export namespace Captcha {
         }
     }
 }   
-

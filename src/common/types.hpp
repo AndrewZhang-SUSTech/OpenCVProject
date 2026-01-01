@@ -1,4 +1,4 @@
-module;
+#pragma once
 
 #include <fmt/core.h>
 #include <ylt/util/tl/expected.hpp>
@@ -8,9 +8,7 @@ module;
 #include <vector>
 #include <chrono>
 
-export module Bot.Types;
-
-export struct User {
+struct User {
     std::string name;
     long long id;
     long long phone;
@@ -19,7 +17,7 @@ export struct User {
     std::vector<std::chrono::system_clock::time_point> time;
 };
 
-export struct BotError {
+struct BotError {
 private:
     std::source_location location;
     std::string message;
@@ -38,5 +36,5 @@ public:
 };
 static_assert(std::is_nothrow_move_constructible<BotError>::value);
 
-export template<typename T>
+template<typename T>
 using Result = tl::expected<T, BotError>;
