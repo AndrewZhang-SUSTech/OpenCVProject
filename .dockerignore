@@ -1,0 +1,8 @@
+.git/
+.vscode/
+.cache/
+out/
+build/
+
+config.yml
+CMakePresets.json
