@@ -135,8 +135,6 @@ CPMAddPackage(
 
 if(MSVC)
     add_compile_options(/bigobj)
-elseif(WIN32 AND CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-    add_compile_options(-mbig-obj)
 elseif(WIN32 AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     add_compile_options(-Wa,-mbig-obj)
 endif()
