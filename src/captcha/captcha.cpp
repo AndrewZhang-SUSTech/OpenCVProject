@@ -1,11 +1,11 @@
 #include "captcha.hpp"
-#include "../common/log.hpp"
-#include <opencv2/opencv.hpp>
-#include <opencv2/imgcodecs.hpp>
 #include <fmt/core.h>
+#include <opencv2/imgcodecs.hpp>
+#include <opencv2/opencv.hpp>
+#include "../common/log.hpp"
 
 namespace Captcha {
-    Result<int64_t> solve(std::span<uint8_t> jigsaw_bytes, std::span<uint8_t> original_bytes){
+    Result<int64_t> solve(std::span<uint8_t> jigsaw_bytes, std::span<uint8_t> original_bytes) {
         try {
             cv::Mat jigsaw_buf(1, (int)jigsaw_bytes.size(), CV_8UC1, jigsaw_bytes.data());
             cv::Mat jigsaw = cv::imdecode(jigsaw_buf, cv::IMREAD_UNCHANGED);
@@ -49,37 +49,30 @@ namespace Captcha {
             cv::findContours(binary_cropped, contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
 
             int result = -1;
-            for (const auto& contour : contours)
-            {
-                if (cv::contourArea(contour) < 50)
-                {
-                    continue; // Filter out small noise
+            for (const auto& contour : contours) {
+                if (cv::contourArea(contour) < 50) {
+                    continue;  // Filter out small noise
                 }
 
                 cv::Rect contour_bbox = cv::boundingRect(contour);
                 int contour_y_in_original = contour_bbox.y + crop_y_start;
 
                 // Check if the vertical position of the contour aligns with the jigsaw piece
-                if (contour_y_in_original >= jigsaw_top_y - 3 &&
-                    contour_y_in_original <= jigsaw_bottom_y + 3)
-                {
+                if (contour_y_in_original >= jigsaw_top_y - 3 && contour_y_in_original <= jigsaw_bottom_y + 3) {
                     result = contour_bbox.x;
-                    break; // Found matching contour, return x coordinate
+                    break;  // Found matching contour, return x coordinate
                 }
             }
 
-            if (result == -1)
-            {
+            if (result == -1) {
                 return tl::unexpected(BotError("No suitable contour found"));
             }
 
             LOG_DEBUG(logger, "Captcha solved: x position = {}", result);
 
             return result;
-        }
-        catch (const std::exception& e)
-        {
+        } catch (const std::exception& e) {
             return tl::unexpected(BotError(fmt::format("Captcha solving error: {}", e.what())));
         }
     }
-}   
+}  // namespace Captcha

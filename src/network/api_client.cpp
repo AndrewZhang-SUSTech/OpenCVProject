@@ -1,17 +1,17 @@
 #include "api_client.hpp"
-#include "../config/config.hpp"
-#include "../utils/crypto.hpp"
 #include "../captcha/captcha.hpp"
 #include "../common/log.hpp"
+#include "../config/config.hpp"
+#include "../utils/crypto.hpp"
 
-#include <exception>
-#include <thread>
-#include <ylt/coro_io/client_pool.hpp>
-#include <nlohmann/json.hpp>
-#include <string>
 #include <fmt/core.h>
 #include <simdjson.h>
+#include <exception>
+#include <nlohmann/json.hpp>
 #include <random>
+#include <string>
+#include <thread>
+#include <ylt/coro_io/client_pool.hpp>
 
 #ifdef RESERVATION_SINGLETHREAD_ENABLED
 #include <ylt/coro_io/io_context_pool.hpp>
@@ -42,11 +42,9 @@ namespace Network {
         auto pool_result = co_await client_pool->send_request(
             [&user](coro_http::coro_http_client& client) -> async_simple::coro::Lazy<Result<void>> {
                 auto result = co_await client.async_get(
-                    fmt::format(
-                        "https://reservation.sustech.edu.cn/api/blade-app/qywx/getAppGymPageByCustomerId?userid={}&token={}&current=1&size=50&gymName=",
-                        user.id, user.token
-                    )
-                );
+                    fmt::format("https://reservation.sustech.edu.cn/api/blade-app/qywx/"
+                                "getAppGymPageByCustomerId?userid={}&token={}&current=1&size=50&gymName=",
+                                user.id, user.token));
 
                 if (result.status != 200) {
                     co_return tl::unexpected(BotError(fmt::format("HTTP Error: {}", result.status)));
@@ -55,16 +53,15 @@ namespace Network {
                 try {
                     nlohmann::json j = nlohmann::json::parse(result.resp_body);
                     if (j["code"].get<int>() != 200) {
-                        co_return tl::unexpected(BotError(fmt::format("Token validation failed: {}", result.resp_body)));
+                        co_return tl::unexpected(
+                            BotError(fmt::format("Token validation failed: {}", result.resp_body)));
                     }
                     LOG_INFO(logger, "Token is valid.");
                     co_return Result<void>{};
-                }
-                catch (...) {
+                } catch (...) {
                     co_return tl::unexpected(BotError("Failed to parse token validation response"));
                 }
-            }
-        );
+            });
 
         if (!pool_result) co_return tl::unexpected(pool_error_to_bot_error(pool_result.error()));
         co_return pool_result.value();
@@ -74,19 +71,17 @@ namespace Network {
         CaptchaContext ctx;
         std::string resp_body_get;
 
-        auto pool_res_1 = co_await client_pool->send_request(
-            [&](coro_http::coro_http_client& client) -> async_simple::coro::Lazy<Result<std::string>> {
-                auto result = co_await client.async_post(
-                    "https://reservation.sustech.edu.cn/api/captcha/get",
-                    R"({"captchaType":"blockPuzzle","clientUid":"slider-3c6ee719-99f3-48aa-a51e-f553f9b00c7e","ts":1740655642708})",
-                    coro_http::req_content_type::json
-                );
-                if (result.status != 200)
-                    co_return tl::unexpected(BotError(fmt::format("HTTP Error fetching captcha: {}", result.status)));
+        auto pool_res_1 = co_await client_pool->send_request([&](coro_http::coro_http_client& client)
+                                                                 -> async_simple::coro::Lazy<Result<std::string>> {
+            auto result = co_await client.async_post(
+                "https://reservation.sustech.edu.cn/api/captcha/get",
+                R"({"captchaType":"blockPuzzle","clientUid":"slider-3c6ee719-99f3-48aa-a51e-f553f9b00c7e","ts":1740655642708})",
+                coro_http::req_content_type::json);
+            if (result.status != 200)
+                co_return tl::unexpected(BotError(fmt::format("HTTP Error fetching captcha: {}", result.status)));
 
-                co_return std::string(result.resp_body);
-            }
-        );
+            co_return std::string(result.resp_body);
+        });
 
         if (!pool_res_1) co_return tl::unexpected(pool_error_to_bot_error(pool_res_1.error()));
         if (!pool_res_1.value()) co_return tl::unexpected(pool_res_1.value().error());
@@ -99,7 +94,8 @@ namespace Network {
             try {
                 simdjson::dom::element doc = parser.parse(resp_body_get);
                 bool success;
-                if (doc["success"].get(success) != simdjson::SUCCESS || !success) return tl::unexpected(BotError("Server returned failure"));
+                if (doc["success"].get(success) != simdjson::SUCCESS || !success)
+                    return tl::unexpected(BotError("Server returned failure"));
 
                 simdjson::dom::element data;
                 if (doc["repData"].get(data) != simdjson::SUCCESS) return tl::unexpected(BotError("Missing repData"));
@@ -107,8 +103,7 @@ namespace Network {
                 std::string_view j_sv, o_sv, t_sv, s_sv;
                 if (data["jigsawImageBase64"].get(j_sv) != simdjson::SUCCESS ||
                     data["originalImageBase64"].get(o_sv) != simdjson::SUCCESS ||
-                    data["token"].get(t_sv) != simdjson::SUCCESS ||
-                    data["secretKey"].get(s_sv) != simdjson::SUCCESS) {
+                    data["token"].get(t_sv) != simdjson::SUCCESS || data["secretKey"].get(s_sv) != simdjson::SUCCESS) {
                     return tl::unexpected(BotError("Missing fields"));
                 }
 
@@ -116,8 +111,7 @@ namespace Network {
                 ctx.secret_key = s_sv;
                 jigsaw_b64 = j_sv;
                 original_b64 = o_sv;
-            }
-            catch (const simdjson::simdjson_error& e) {
+            } catch (const simdjson::simdjson_error& e) {
                 return tl::unexpected(BotError(fmt::format("JSON Parse Error: {}", e.what())));
             }
 
@@ -126,27 +120,19 @@ namespace Network {
             if (!jigsaw_bytes || !original_bytes) return tl::unexpected(jigsaw_bytes.error());
 
             return Captcha::solve(*jigsaw_bytes, *original_bytes);
-            });
+        });
 
-
-
-        if (solve_res.hasError())
-        {
-	        try
-	        {
+        if (solve_res.hasError()) {
+            try {
                 std::rethrow_exception(solve_res.getException());
-	        }
-	        catch (const std::exception& e)
-	        {
-				co_return tl::unexpected(BotError(fmt::format("Failed to solve captcha: {}", e.what())));
-	        }
+            } catch (const std::exception& e) {
+                co_return tl::unexpected(BotError(fmt::format("Failed to solve captcha: {}", e.what())));
+            }
         }
-        
-        
 
         {
-            static thread_local std::mt19937_64 gen{ rd() };
-            static thread_local std::uniform_real_distribution<double> dis(0.0, 2.0);
+            static thread_local std::mt19937_64 gen{rd()};
+            static thread_local std::uniform_real_distribution<double> dis(-2.0, 2.0);
             double final_x = *solve_res.value() + dis(gen);
             ctx.point_json = fmt::format(R"({{"x":{:.1f},"y":5}})", final_x);
         }
@@ -162,61 +148,45 @@ namespace Network {
 
         auto pool_res_2 = co_await client_pool->send_request(
             [&](coro_http::coro_http_client& client) -> async_simple::coro::Lazy<Result<void>> {
-                auto result = co_await client.async_post(
-                    "https://reservation.sustech.edu.cn/api/captcha/check",
-                    payload_str,
-                    coro_http::req_content_type::json
-                );
+                auto result = co_await client.async_post("https://reservation.sustech.edu.cn/api/captcha/check",
+                                                         payload_str, coro_http::req_content_type::json);
 
                 try {
                     auto j = nlohmann::json::parse(result.resp_body);
                     if (!j["success"].get<bool>()) {
                         co_return tl::unexpected(BotError(fmt::format("Captcha check failed: {}", result.resp_body)));
                     }
-                }
-                catch (...) {
+                } catch (...) {
                     co_return tl::unexpected(BotError("Failed to parse check response"));
                 }
                 co_return Result<void>{};
-            }
-        );
+            });
 
         if (!pool_res_2) co_return tl::unexpected(pool_error_to_bot_error(pool_res_2.error()));
         if (!pool_res_2.value()) co_return tl::unexpected(pool_res_2.value().error());
 
         LOG_INFO(logger, "{} is validated.", ctx.point_json);
 
-
         std::string combine = fmt::format("{}---{}", ctx.token, ctx.point_json);
-        auto final_result = co_await coro_io::post([&combine, secret_key = ctx.secret_key]() {
-            return Crypto::aes_encrypt_ecb(combine, secret_key);
-            });
+        auto final_result = co_await coro_io::post(
+            [&combine, secret_key = ctx.secret_key]() { return Crypto::aes_encrypt_ecb(combine, secret_key); });
 
-        if (final_result.hasError())
-        {
-	        try
-	        {
+        if (final_result.hasError()) {
+            try {
                 std::rethrow_exception(final_result.getException());
-	        }
-	        catch (const std::exception& e)
-	        {
+            } catch (const std::exception& e) {
                 co_return tl::unexpected(BotError(fmt::format("Failed to encrypt final result: {}", e.what())));
-	        }
+            }
         }
 
-		co_return final_result.value();
+        co_return final_result.value();
     }
 
     // 3. 抢票 (单次 IO)
-    async_simple::coro::Lazy<Result<void>> reserve(
-        const User& user,
-        std::string_view verification,
-        std::string_view time_start,
-        std::string_view time_end,
-        std::string_view date,
-        std::string_view court_id,
-        std::string_view court_name)
-    {
+    async_simple::coro::Lazy<Result<void>> reserve(const User& user, std::string_view verification,
+                                                   std::string_view time_start, std::string_view time_end,
+                                                   std::string_view date, std::string_view court_id,
+                                                   std::string_view court_name) {
         nlohmann::json p;
         p["captchaVerification"] = verification;
         p["customerId"] = "1433554008613634050";
@@ -231,9 +201,7 @@ namespace Network {
         std::string payload_str = p.dump();
 
         std::string url = fmt::format(
-            "https://reservation.sustech.edu.cn/api/blade-app/qywx/saveOrder?userid={}&token={}",
-            user.id, user.token
-        );
+            "https://reservation.sustech.edu.cn/api/blade-app/qywx/saveOrder?userid={}&token={}", user.id, user.token);
 
         auto pool_result = co_await client_pool->send_request(
             [&](coro_http::coro_http_client& client) -> async_simple::coro::Lazy<Result<void>> {
@@ -243,19 +211,16 @@ namespace Network {
                     auto j = nlohmann::json::parse(res.resp_body);
                     if (j["success"].get<bool>()) {
                         co_return Result<void>{};
-                    }
-                    else {
+                    } else {
                         std::string msg = j.value("msg", "Unknown error");
                         co_return tl::unexpected(BotError(msg));
                     }
-                }
-                catch (...) {
+                } catch (...) {
                     co_return tl::unexpected(BotError("Failed to parse order response"));
                 }
-            }
-        );
+            });
 
         if (!pool_result) co_return tl::unexpected(pool_error_to_bot_error(pool_result.error()));
         co_return pool_result.value();
     }
-}
+}  // namespace Network

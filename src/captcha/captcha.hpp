@@ -1,7 +1,7 @@
 #pragma once
 
-#include <span>
 #include <cstdint>
+#include <span>
 #include "../common/types.hpp"
 
 namespace Captcha {

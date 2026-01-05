@@ -1,12 +1,12 @@
 #pragma once
 
 #include <fmt/core.h>
-#include <ylt/util/tl/expected.hpp>
-#include <source_location>
-#include <type_traits>
-#include <string>
-#include <vector>
 #include <chrono>
+#include <source_location>
+#include <string>
+#include <type_traits>
+#include <vector>
+#include <ylt/util/tl/expected.hpp>
 
 struct User {
     std::string name;
@@ -36,5 +36,5 @@ public:
 };
 static_assert(std::is_nothrow_move_constructible<BotError>::value);
 
-template<typename T>
+template <typename T>
 using Result = tl::expected<T, BotError>;

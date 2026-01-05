@@ -1,9 +1,9 @@
 #include "crypto.hpp"
-#include <openssl/ssl.h>
-#include <openssl/evp.h>
+#include <openssl/aes.h>
 #include <openssl/bio.h>
 #include <openssl/buffer.h>
-#include <openssl/aes.h>
+#include <openssl/evp.h>
+#include <openssl/ssl.h>
 #include <cstring>
 #include <memory>
 
@@ -16,11 +16,11 @@ namespace Crypto {
         // Calculate max decoded length
         size_t len = input.length();
         std::vector<uint8_t> out(len);
-        
+
         // Create BIO chain
         std::unique_ptr<BIO, decltype(&BIO_free_all)> bio(BIO_new_mem_buf(input.data(), -1), BIO_free_all);
         BIO* b64 = BIO_new(BIO_f_base64());
-        BIO_set_flags(b64, BIO_FLAGS_BASE64_NO_NL); // No newlines
+        BIO_set_flags(b64, BIO_FLAGS_BASE64_NO_NL);  // No newlines
         bio.reset(BIO_push(b64, bio.release()));
 
         int decoded_len = BIO_read(bio.get(), out.data(), len);
@@ -53,8 +53,8 @@ namespace Crypto {
         if (!ctx) return tl::unexpected(BotError("Failed to create cipher context"));
 
         // Initialize encryption operation
-        if (1 != EVP_EncryptInit_ex(ctx.get(), EVP_aes_128_ecb(), nullptr, 
-                                   reinterpret_cast<const uint8_t*>(key.data()), nullptr)) {
+        if (1 != EVP_EncryptInit_ex(ctx.get(), EVP_aes_128_ecb(), nullptr, reinterpret_cast<const uint8_t*>(key.data()),
+                                    nullptr)) {
             return tl::unexpected(BotError("Failed to init AES encryption"));
         }
 
@@ -66,8 +66,8 @@ namespace Crypto {
         int ciphertext_len = 0;
 
         // Update data
-        if (1 != EVP_EncryptUpdate(ctx.get(), ciphertext.data(), &len, 
-                                  reinterpret_cast<const uint8_t*>(plaintext.data()), plaintext.size())) {
+        if (1 != EVP_EncryptUpdate(ctx.get(), ciphertext.data(), &len,
+                                   reinterpret_cast<const uint8_t*>(plaintext.data()), plaintext.size())) {
             return tl::unexpected(BotError("Encryption update failed"));
         }
         ciphertext_len = len;
@@ -82,4 +82,4 @@ namespace Crypto {
         std::string encoded = base64_encode(ciphertext);
         return encoded;
     }
-}
+}  // namespace Crypto
