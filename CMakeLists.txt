@@ -80,7 +80,7 @@ CPMAddPackage(
 
 CPMAddPackage(
     NAME yalantinglibs
-    URL https://github.com/alibaba/yalantinglibs/archive/refs/tags/0.5.6.zip
+    URL https://github.com/alibaba/yalantinglibs/archive/refs/tags/0.5.7.zip
     OPTIONS 
         "BUILD_EXAMPLES OFF"
         "BUILD_BENCHMARKS OFF"
