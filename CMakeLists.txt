@@ -21,8 +21,7 @@ include(${CMAKE_CURRENT_BINARY_DIR}/cmake/CPM.cmake)
 
 CPMAddPackage(
     NAME opencv
-    GIT_REPOSITORY https://github.com/opencv/opencv.git
-    GIT_TAG 4.12.0
+    URL https://github.com/opencv/opencv/archive/refs/tags/4.13.0.tar.gz
     OPTIONS
         "BUILD_LIST core,imgproc,imgcodecs"
         "BUILD_opencv_apps OFF"
