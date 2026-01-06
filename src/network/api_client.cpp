@@ -184,8 +184,12 @@ namespace Network {
     // 3. 抢票 (单次 IO)
     async_simple::coro::Lazy<Result<void>> reserve(const User& user, std::string_view verification,
                                                    std::string_view time_start, std::string_view time_end,
-                                                   std::string_view date, std::string_view court_id,
-                                                   std::string_view court_name) {
+                                                   std::string_view date, int court_index) {
+        if (court_index < 1 || court_index > (int)Constants::GROUND_NUM) {
+            co_return tl::unexpected(BotError(fmt::format("Invalid court index: {}", court_index)));
+        }
+        const auto& ground = Constants::GROUNDS[court_index - 1];
+
         nlohmann::json p;
         p["captchaVerification"] = verification;
         p["customerId"] = "1433554008613634050";
@@ -195,8 +199,8 @@ namespace Network {
         p["customerEmail"] = "";
         p["gymId"] = "1297443858304540673";
         p["gymName"] = "润杨羽毛球馆";
-        p["groundId"] = court_id;
-        p["groundName"] = court_name;
+        p["groundId"] = ground.id;
+        p["groundName"] = ground.name;
         p["groundType"] = "0";
         p["messagePushType"] = "0";
         p["isIllegal"] = "0";
