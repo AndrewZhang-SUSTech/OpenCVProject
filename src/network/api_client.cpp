@@ -1,5 +1,6 @@
 #include "api_client.hpp"
 #include "../captcha/captcha.hpp"
+#include "../common/constants.hpp"
 #include "../common/log.hpp"
 #include "../config/config.hpp"
 #include "../utils/crypto.hpp"
@@ -25,7 +26,6 @@ static inline std::random_device rd{};
 
 namespace Network {
 
-    // 全局连接池
     auto client_pool = coro_io::client_pool<coro_http::coro_http_client>::create("https://reservation.sustech.edu.cn");
 
     struct CaptchaContext {
@@ -71,17 +71,16 @@ namespace Network {
         CaptchaContext ctx;
         std::string resp_body_get;
 
-        auto pool_res_1 = co_await client_pool->send_request([&](coro_http::coro_http_client& client)
-                                                                 -> async_simple::coro::Lazy<Result<std::string>> {
-            auto result = co_await client.async_post(
-                "https://reservation.sustech.edu.cn/api/captcha/get",
-                R"({"captchaType":"blockPuzzle","clientUid":"slider-3c6ee719-99f3-48aa-a51e-f553f9b00c7e","ts":1740655642708})",
-                coro_http::req_content_type::json);
-            if (result.status != 200)
-                co_return tl::unexpected(BotError(fmt::format("HTTP Error fetching captcha: {}", result.status)));
+        auto pool_res_1 = co_await client_pool->send_request(
+            [&](coro_http::coro_http_client& client) -> async_simple::coro::Lazy<Result<std::string>> {
+                auto result = co_await client.async_post("https://reservation.sustech.edu.cn/api/captcha/get",
+                                                         std::string(Constants::CAPTCHA_PAYLOAD),
+                                                         coro_http::req_content_type::json);
+                if (result.status != 200)
+                    co_return tl::unexpected(BotError(fmt::format("HTTP Error fetching captcha: {}", result.status)));
 
-            co_return std::string(result.resp_body);
-        });
+                co_return std::string(result.resp_body);
+            });
 
         if (!pool_res_1) co_return tl::unexpected(pool_error_to_bot_error(pool_res_1.error()));
         if (!pool_res_1.value()) co_return tl::unexpected(pool_res_1.value().error());
