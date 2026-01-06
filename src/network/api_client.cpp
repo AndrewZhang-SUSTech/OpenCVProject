@@ -191,12 +191,21 @@ namespace Network {
         p["customerId"] = "1433554008613634050";
         p["customerName"] = user.name;
         p["customerTel"] = user.phone;
+        p["userNum"] = "1";
+        p["customerEmail"] = "";
         p["gymId"] = "1297443858304540673";
+        p["gymName"] = "润杨羽毛球馆";
         p["groundId"] = court_id;
         p["groundName"] = court_name;
+        p["groundType"] = "0";
+        p["messagePushType"] = "0";
+        p["isIllegal"] = "0";
         p["orderDate"] = date;
         p["startTime"] = time_start;
         p["endTime"] = time_end;
+        p["tmpOrderDate"] = date;
+        p["tmpStartTime"] = time_start;
+        p["tmpEndTime"] = time_end;
         std::string payload_str = p.dump();
 
         std::string url = fmt::format(
