@@ -1,17 +1,17 @@
 #include "config.hpp"
-#include "../common/log.hpp"
-#include <yaml-cpp/yaml.h>
-#include <quill/LogMacros.h>
-#include <vector>
-#include <chrono>
-#include <sstream>
-#include <iomanip>
 #include <fmt/core.h>
-#include "yaml-cpp/emittermanip.h"
+#include <quill/LogMacros.h>
+#include <yaml-cpp/yaml.h>
+#include <chrono>
 #include <cstdio>
+#include <iomanip>
+#include <sstream>
+#include <vector>
+#include "../common/log.hpp"
+#include "yaml-cpp/emittermanip.h"
 
 namespace YAML {
-    template<>
+    template <>
     struct convert<std::chrono::system_clock::time_point> {
         static bool decode(const Node& node, std::chrono::system_clock::time_point& rhs) {
             if (!node.IsScalar()) return false;
@@ -24,7 +24,7 @@ namespace YAML {
             return true;
         }
     };
-}
+}  // namespace YAML
 
 namespace Config {
     Result<User> load_user_config(const std::string& path) {
@@ -46,8 +46,7 @@ namespace Config {
             }
             try {
                 user.token = config["token"].as<std::string>();
-            }
-            catch (...) {
+            } catch (...) {
                 return tl::unexpected(BotError("Config error: 'token' must be a string"));
             }
 
@@ -94,16 +93,20 @@ namespace Config {
                         std::time_t t = std::chrono::system_clock::to_time_t(tp);
                         std::tm* tm_ptr = std::localtime(&t);
                         if (tm_ptr == nullptr || tm_ptr->tm_sec != 0 || (tm_ptr->tm_min != 0 && tm_ptr->tm_min != 30)) {
-                            return tl::unexpected(BotError("Config error: 'time' elements must be on the hour or half-hour (e.g. 12:00 or 12:30)"));
+                            return tl::unexpected(
+                                BotError("Config error: 'time' elements must be on the hour or half-hour (e.g. 12:00 "
+                                         "or 12:30)"));
                         }
                     }
                     user.time = times;
                 } catch (...) {
-                    return tl::unexpected(BotError("Config error: Failed to parse 'time' elements. Expected format: YYYY-MM-DD HH:MM"));
+                    return tl::unexpected(
+                        BotError("Config error: Failed to parse 'time' elements. Expected format: YYYY-MM-DD HH:MM"));
                 }
             } else if (user.is_scheduled_mode) {
-                return tl::unexpected(BotError("Config error: 'time' field is required when 'is_scheduled_mode' is true"));
-            } 
+                return tl::unexpected(
+                    BotError("Config error: 'time' field is required when 'is_scheduled_mode' is true"));
+            }
 
             return user;
         } catch (const YAML::BadFile&) {
@@ -113,7 +116,7 @@ namespace Config {
         }
     }
 
-    Result<void> generate_template_config(){
+    Result<void> generate_template_config() {
         try {
             YAML::Emitter out;
             out << YAML::BeginMap;
@@ -129,11 +132,11 @@ namespace Config {
             out << YAML::EndSeq;
             out << YAML::EndMap;
 
-            if(!out.good()){
+            if (!out.good()) {
                 return tl::unexpected(BotError("Failed to generate template config: YAML emission error"));
             }
 
-            if(std::FILE* fout = std::fopen("config_template.yml", "w"); fout){
+            if (std::FILE* fout = std::fopen("config_template.yml", "w"); fout) {
                 fmt::print(fout, "{}", out.c_str());
                 std::fclose(fout);
             } else {
@@ -145,4 +148,4 @@ namespace Config {
             return tl::unexpected(BotError(fmt::format("Failed to generate template config: {}", e.what())));
         }
     }
-}
+}  // namespace Config

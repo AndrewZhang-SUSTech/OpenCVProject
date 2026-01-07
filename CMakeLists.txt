@@ -126,11 +126,16 @@ CPMAddPackage(
         "SIMDJSON_DISABLE_DEPRECATED_API ON"
 )
 
-CPMAddPackage(
-    NAME concurrentqueue
-    GIT_REPOSITORY https://github.com/cameron314/concurrentqueue.git
-    GIT_TAG v1.0.4
-)
+# CPMAddPackage(
+#     NAME googletest
+#     URL https://github.com/google/googletest/archive/refs/tags/v1.17.0.tar.gz
+#     OPTIONS
+#             "INSTALL_GTEST OFF"
+# )
+# CPMAddPackage(
+#     NAME benchmark
+#     URL https://github.com/google/benchmark/archive/refs/tags/v1.9.4.tar.gz
+# )
 
 if(MSVC)
     add_compile_options(/bigobj)
@@ -141,6 +146,7 @@ endif()
 add_compile_definitions(FMT_HEADER_ONLY=0)
 
 add_library(BotCore STATIC
+    src/common/log.cpp
     src/config/config.cpp
     src/network/api_client.cpp
     src/utils/crypto.cpp
@@ -171,7 +177,6 @@ target_link_libraries(BotCore PUBLIC
     fmt::fmt
     ${OpenCV_LIBS}
     simdjson::simdjson
-    concurrentqueue
     $<$<PLATFORM_ID:Windows>:dbghelp>
 )
 target_include_directories(BotCore PUBLIC
@@ -193,3 +198,10 @@ elseif(WIN32 AND (CMAKE_CXX_COMPILER_ID STREQUAL "Clang" OR CMAKE_CXX_COMPILER_I
 else()
     target_link_options(${PROJECT_NAME} PRIVATE $<$<CONFIG:Release>:-static-libstdc++ -static-libgcc -s>)
 endif()
+
+enable_testing()
+
+add_executable(network_benchmark tests/network_benchmark.cpp)
+target_link_libraries(network_benchmark PRIVATE BotCore yalantinglibs::yalantinglibs quill::quill)
+add_test(NAME NetworkBenchmark COMMAND network_benchmark)
+

@@ -18,8 +18,6 @@
 #include <quill/sinks/ConsoleSink.h>
 #include "quill/backend/BackendOptions.h"
 
-quill::Logger* logger = nullptr;
-
 Result<void> init_logger() noexcept {
     try {
         logger = quill::Frontend::create_or_get_logger(

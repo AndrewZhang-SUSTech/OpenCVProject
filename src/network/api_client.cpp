@@ -26,7 +26,8 @@ static inline std::random_device rd{};
 
 namespace Network {
 
-    auto client_pool = coro_io::client_pool<coro_http::coro_http_client>::create("https://reservation.sustech.edu.cn");
+    auto client_pool = coro_io::client_pool<coro_http::coro_http_client>::create("https://reservation.sustech.edu.cn",
+                                                                                 {.max_connection = 200});
 
     struct CaptchaContext {
         std::string token;
