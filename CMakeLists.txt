@@ -2,6 +2,9 @@ cmake_minimum_required(VERSION 3.28)
 
 project(MyProject LANGUAGES CXX)
 
+option(YLT_ENABLE_IO_URING "Enable io_uring for yalantinglibs" OFF)
+option(RESERVATION_SINGLETHREAD_ENABLED "Enable single-threaded reservation" OFF)
+
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
@@ -85,6 +88,7 @@ CPMAddPackage(
         "BUILD_EXAMPLES OFF"
         "BUILD_BENCHMARKS OFF"
         "YLT_ENABLE_SSL ON"    
+        "YLT_ENABLE_IO_URING ${YLT_ENABLE_IO_URING}"
 )
 
 CPMAddPackage(
@@ -126,17 +130,6 @@ CPMAddPackage(
         "SIMDJSON_DISABLE_DEPRECATED_API ON"
 )
 
-# CPMAddPackage(
-#     NAME googletest
-#     URL https://github.com/google/googletest/archive/refs/tags/v1.17.0.tar.gz
-#     OPTIONS
-#             "INSTALL_GTEST OFF"
-# )
-# CPMAddPackage(
-#     NAME benchmark
-#     URL https://github.com/google/benchmark/archive/refs/tags/v1.9.4.tar.gz
-# )
-
 if(MSVC)
     add_compile_options(/bigobj)
 elseif(WIN32 AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
@@ -144,6 +137,10 @@ elseif(WIN32 AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
 endif()
 
 add_compile_definitions(FMT_HEADER_ONLY=0)
+
+if(RESERVATION_SINGLETHREAD_ENABLED)
+    set_source_files_properties(src/network/api_client.cpp PROPERTIES COMPILE_DEFINITIONS RESERVATION_SINGLETHREAD_ENABLED)
+endif()
 
 add_library(BotCore STATIC
     src/common/log.cpp
