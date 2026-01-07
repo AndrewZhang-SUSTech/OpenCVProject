@@ -119,28 +119,78 @@ int main() {
 
     std::cout << "\n----------------------------------------\n" << std::endl;
 
-    std::cout << "2. Testing reserve request..." << std::endl;
-    auto start_reserve = std::chrono::high_resolution_clock::now();
-
     try {
-        auto reserve_result = async_simple::coro::syncAwait(Network::reserve(user, verification,
-                                                                             "18:00",       // time_start
-                                                                             "19:00",       // time_end
-                                                                             "2026-01-01",  // date
-                                                                             1              // court_index
-                                                                             ));
+        int ReserveTotal = 100;
+        int ReserveBatchSize = 20;
+        std::cout << "2. Testing reserve request (" << ReserveTotal << " requests, batch size " << ReserveBatchSize << ")..."
+                  << std::endl;
 
-        auto end_reserve = std::chrono::high_resolution_clock::now();
-        std::chrono::duration<double, std::milli> elapsed_reserve = end_reserve - start_reserve;
-        std::cout << "=> reserve took: " << elapsed_reserve.count() << " ms" << std::endl;
+        std::vector<double> reserve_times;
+        reserve_times.reserve(ReserveTotal);
 
-        if (!reserve_result) {
-            std::cout << "   reserve result (expected failure): " << reserve_result.error().to_string() << std::endl;
-        } else {
-            std::cout << "   reserve success" << std::endl;
+        auto start_reserve_total = std::chrono::high_resolution_clock::now();
+
+        for (int b = 0; b < (ReserveTotal + ReserveBatchSize - 1) / ReserveBatchSize; ++b) {
+            std::vector<async_simple::coro::Lazy<double>> tasks;
+            tasks.reserve(ReserveBatchSize);
+
+            int current_batch_size = std::min(ReserveBatchSize, ReserveTotal - b * ReserveBatchSize);
+            for (int i = 0; i < current_batch_size; ++i) {
+                tasks.push_back([&user, &verification]() -> async_simple::coro::Lazy<double> {
+                    auto start = std::chrono::high_resolution_clock::now();
+                    auto result = co_await Network::reserve(user, verification,
+                                                          "18:00",       // time_start
+                                                          "19:00",       // time_end
+                                                          "2026-01-01",  // date
+                                                          1              // court_index
+                                                          );
+                    auto end = std::chrono::high_resolution_clock::now();
+                    std::chrono::duration<double, std::milli> elapsed = end - start;
+                    co_return elapsed.count();
+                }());
+            }
+
+            auto results = async_simple::coro::syncAwait(async_simple::coro::collectAll(std::move(tasks)));
+            for (const auto& r : results) {
+                reserve_times.push_back(r.value());
+            }
         }
+
+        auto end_reserve_total = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double, std::milli> elapsed_reserve_total = end_reserve_total - start_reserve_total;
+
+        if (reserve_times.empty()) {
+            std::cerr << "No results collected for reserve!" << std::endl;
+        } else {
+            // Calculate stats
+            double sum = std::accumulate(reserve_times.begin(), reserve_times.end(), 0.0);
+            double mean = sum / reserve_times.size();
+
+            std::sort(reserve_times.begin(), reserve_times.end());
+            double min = reserve_times.front();
+            double max = reserve_times.back();
+            double median = reserve_times[reserve_times.size() / 2];
+            double p95 = reserve_times[(size_t)(reserve_times.size() * 0.95)];
+            double p99 = reserve_times[(size_t)(reserve_times.size() * 0.99)];
+
+            double sq_sum = std::inner_product(reserve_times.begin(), reserve_times.end(), reserve_times.begin(), 0.0);
+            double stdev = std::sqrt(sq_sum / reserve_times.size() - mean * mean);
+
+            std::cout << "\n--- Reserve Statistics (ms) ---" << std::endl;
+            std::cout << "Total Wall Time: " << elapsed_reserve_total.count() << " ms" << std::endl;
+            std::cout << "Count:  " << reserve_times.size() << std::endl;
+            std::cout << "Min:    " << min << std::endl;
+            std::cout << "Max:    " << max << std::endl;
+            std::cout << "Mean:   " << mean << std::endl;
+            std::cout << "Median: " << median << std::endl;
+            std::cout << "Stdev:  " << stdev << std::endl;
+            std::cout << "P95:    " << p95 << std::endl;
+            std::cout << "P99:    " << p99 << std::endl;
+            std::cout << "-----------------------\n" << std::endl;
+        }
+
     } catch (const std::exception& e) {
-        std::cerr << "   Exception in reserve: " << e.what() << std::endl;
+        std::cerr << "Benchmark Exception (Phase 2): " << e.what() << std::endl;
     }
 
     return 0;

@@ -203,5 +203,14 @@ enable_testing()
 
 add_executable(network_benchmark tests/network_benchmark.cpp)
 target_link_libraries(network_benchmark PRIVATE BotCore yalantinglibs::yalantinglibs quill::quill)
+
+if(MSVC)
+    target_link_options(network_benchmark PRIVATE $<$<CONFIG:Release>:/DEBUG:NONE>)
+elseif(WIN32 AND (CMAKE_CXX_COMPILER_ID STREQUAL "Clang" OR CMAKE_CXX_COMPILER_ID STREQUAL "GNU"))
+    target_link_options(network_benchmark PRIVATE $<$<CONFIG:Release>:-static -s>)
+else()
+    target_link_options(network_benchmark PRIVATE $<$<CONFIG:Release>:-static-libstdc++ -static-libgcc -s>)
+endif()
+
 add_test(NAME NetworkBenchmark COMMAND network_benchmark)
 
