@@ -143,7 +143,6 @@ if(RESERVATION_SINGLETHREAD_ENABLED)
 endif()
 
 add_library(BotCore STATIC
-    src/common/log.cpp
     src/config/config.cpp
     src/network/api_client.cpp
     src/utils/crypto.cpp

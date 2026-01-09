@@ -16,13 +16,6 @@ namespace Constants {
 
     constexpr size_t GROUND_NUM = sizeof(GROUNDS) / sizeof(GROUNDS[0]);
 
-    constexpr std::string_view get_ground_name(std::string_view id) {
-        for (const auto& ground : GROUNDS) {
-            if (ground.id == id) return ground.name;
-        }
-        return "未知场地";
-    }
-
     constexpr std::string_view CAPTCHA_PAYLOAD = R"({
         "captchaType": "blockPuzzle",
         "clientUid": "slider-3c6ee719-99f3-48aa-a51e-f553f9b00c7e",
