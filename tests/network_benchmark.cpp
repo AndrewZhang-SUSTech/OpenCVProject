@@ -5,9 +5,11 @@
 #include <quill/LogFunctions.h>
 #include <quill/sinks/ConsoleSink.h>
 #include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <cmath>
 #include <iostream>
+#include <mutex>
 #include <numeric>
 #include <vector>
 #include "../src/common/log.hpp"
@@ -43,8 +45,8 @@ int main() {
 
     try {
         int Total = 200;
-        int BatchSize = 20;
-        std::cout << "1. Testing get_verified_token (" << Total << " requests, batch size " << BatchSize << ")..."
+        int Concurrency = 10;
+        std::cout << "1. Testing get_verified_token (" << Total << " requests, concurrency " << Concurrency << ")..."
                   << std::endl;
 
         std::cout << "   Warming up pool..." << std::endl;
@@ -55,29 +57,35 @@ int main() {
 
         std::vector<double> times;
         times.reserve(Total);
+        std::mutex times_mutex;
+        std::atomic<int> current_idx{0};
 
         auto start_total = std::chrono::high_resolution_clock::now();
 
-        for (int b = 0; b < (Total + BatchSize - 1) / BatchSize; ++b) {
-            std::vector<async_simple::coro::Lazy<double>> tasks;
-            tasks.reserve(BatchSize);
-
-            int current_batch_size = std::min(BatchSize, Total - b * BatchSize);
-            for (int i = 0; i < current_batch_size; ++i) {
-                tasks.push_back([&user]() -> async_simple::coro::Lazy<double> {
-                    auto start = std::chrono::high_resolution_clock::now();
-                    auto result = co_await Network::get_verified_token(user);
-                    auto end = std::chrono::high_resolution_clock::now();
-                    std::chrono::duration<double, std::milli> elapsed = end - start;
-                    co_return elapsed.count();
-                }());
+        auto worker = [&]() -> async_simple::coro::Lazy<void> {
+            while (true) {
+                int i = current_idx.fetch_add(1);
+                if (i >= Total) {
+                    co_return;
+                }
+                auto start = std::chrono::high_resolution_clock::now();
+                auto result = co_await Network::get_verified_token(user);
+                auto end = std::chrono::high_resolution_clock::now();
+                std::chrono::duration<double, std::milli> elapsed = end - start;
+                {
+                    std::lock_guard<std::mutex> lock(times_mutex);
+                    times.push_back(elapsed.count());
+                }
             }
+        };
 
-            auto results = async_simple::coro::syncAwait(async_simple::coro::collectAll(std::move(tasks)));
-            for (const auto& r : results) {
-                times.push_back(r.value());
-            }
+        std::vector<async_simple::coro::Lazy<void>> workers;
+        workers.reserve(Concurrency);
+        for (int i = 0; i < Concurrency; ++i) {
+            workers.push_back(worker());
         }
+
+        async_simple::coro::syncAwait(async_simple::coro::collectAll(std::move(workers)));
 
         auto end_total = std::chrono::high_resolution_clock::now();
 
@@ -121,40 +129,46 @@ int main() {
 
     try {
         int ReserveTotal = 100;
-        int ReserveBatchSize = 20;
-        std::cout << "2. Testing reserve request (" << ReserveTotal << " requests, batch size " << ReserveBatchSize << ")..."
-                  << std::endl;
+        int Concurrency = 10;
+        std::cout << "2. Testing reserve request (" << ReserveTotal << " requests, concurrency " << Concurrency
+                  << ")..." << std::endl;
 
         std::vector<double> reserve_times;
         reserve_times.reserve(ReserveTotal);
+        std::mutex reserve_mutex;
+        std::atomic<int> reserve_idx{0};
 
         auto start_reserve_total = std::chrono::high_resolution_clock::now();
 
-        for (int b = 0; b < (ReserveTotal + ReserveBatchSize - 1) / ReserveBatchSize; ++b) {
-            std::vector<async_simple::coro::Lazy<double>> tasks;
-            tasks.reserve(ReserveBatchSize);
-
-            int current_batch_size = std::min(ReserveBatchSize, ReserveTotal - b * ReserveBatchSize);
-            for (int i = 0; i < current_batch_size; ++i) {
-                tasks.push_back([&user, &verification]() -> async_simple::coro::Lazy<double> {
-                    auto start = std::chrono::high_resolution_clock::now();
-                    auto result = co_await Network::reserve(user, verification,
-                                                          "18:00",       // time_start
-                                                          "19:00",       // time_end
-                                                          "2026-01-01",  // date
-                                                          1              // court_index
-                                                          );
-                    auto end = std::chrono::high_resolution_clock::now();
-                    std::chrono::duration<double, std::milli> elapsed = end - start;
-                    co_return elapsed.count();
-                }());
+        auto reserve_worker = [&]() -> async_simple::coro::Lazy<void> {
+            while (true) {
+                int i = reserve_idx.fetch_add(1);
+                if (i >= ReserveTotal) {
+                    co_return;
+                }
+                auto start = std::chrono::high_resolution_clock::now();
+                auto result = co_await Network::reserve(user, verification,
+                                                        "18:00",       // time_start
+                                                        "19:00",       // time_end
+                                                        "2026-01-01",  // date
+                                                        1              // court_index
+                );
+                auto end = std::chrono::high_resolution_clock::now();
+                std::chrono::duration<double, std::milli> elapsed = end - start;
+                {
+                    std::lock_guard<std::mutex> lock(reserve_mutex);
+                    reserve_times.push_back(elapsed.count());
+                }
             }
+        };
 
-            auto results = async_simple::coro::syncAwait(async_simple::coro::collectAll(std::move(tasks)));
-            for (const auto& r : results) {
-                reserve_times.push_back(r.value());
-            }
+        std::vector<async_simple::coro::Lazy<void>> workers;
+        workers.reserve(Concurrency);
+        for (int i = 0; i < Concurrency; ++i) {
+            workers.push_back(reserve_worker());
         }
+
+        async_simple::coro::syncAwait(async_simple::coro::collectAll(std::move(workers)));
 
         auto end_reserve_total = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> elapsed_reserve_total = end_reserve_total - start_reserve_total;
