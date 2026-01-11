@@ -190,9 +190,15 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
 if(MSVC)
     target_link_options(${PROJECT_NAME} PRIVATE $<$<CONFIG:Release>:/DEBUG:NONE>)
 elseif(WIN32 AND (CMAKE_CXX_COMPILER_ID STREQUAL "Clang" OR CMAKE_CXX_COMPILER_ID STREQUAL "GNU"))
-    target_link_options(${PROJECT_NAME} PRIVATE $<$<CONFIG:Release>:-static -s>)
+    target_link_options(${PROJECT_NAME} PRIVATE 
+        $<$<CONFIG:Release>:-static -s>
+        $<$<CONFIG:RelWithDebInfo>:-static>
+    )
 else()
-    target_link_options(${PROJECT_NAME} PRIVATE $<$<CONFIG:Release>:-static-libstdc++ -static-libgcc -s>)
+    target_link_options(${PROJECT_NAME} PRIVATE 
+        $<$<CONFIG:Release>:-static-libstdc++ -static-libgcc -s>
+        $<$<CONFIG:RelWithDebInfo>:-static-libstdc++ -static-libgcc>
+    )
 endif()
 
 enable_testing()
@@ -203,9 +209,15 @@ target_link_libraries(network_benchmark PRIVATE BotCore yalantinglibs::yalanting
 if(MSVC)
     target_link_options(network_benchmark PRIVATE $<$<CONFIG:Release>:/DEBUG:NONE>)
 elseif(WIN32 AND (CMAKE_CXX_COMPILER_ID STREQUAL "Clang" OR CMAKE_CXX_COMPILER_ID STREQUAL "GNU"))
-    target_link_options(network_benchmark PRIVATE $<$<CONFIG:Release>:-static -s>)
+    target_link_options(network_benchmark PRIVATE 
+        $<$<CONFIG:Release>:-static -s>
+        $<$<CONFIG:RelWithDebInfo>:-static>
+    )
 else()
-    target_link_options(network_benchmark PRIVATE $<$<CONFIG:Release>:-static-libstdc++ -static-libgcc -s>)
+    target_link_options(network_benchmark PRIVATE 
+        $<$<CONFIG:Release>:-static-libstdc++ -static-libgcc -s>
+        $<$<CONFIG:RelWithDebInfo>:-static-libstdc++ -static-libgcc>
+    )
 endif()
 
 add_test(NAME NetworkBenchmark COMMAND network_benchmark)
