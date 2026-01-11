@@ -134,7 +134,7 @@ namespace Network {
             static thread_local std::mt19937_64 gen{rd()};
             static thread_local std::uniform_real_distribution<double> dis(-2.0, 2.0);
             double final_x = *solve_res.value() + dis(gen);
-            ctx.point_json = fmt::format(R"({{"x":{:.1f},"y":5}})", final_x);
+            ctx.point_json = fmt::format(R"({{"x":{:.6f},"y":5}})", final_x);
         }
 
         auto enc_point = Crypto::aes_encrypt_ecb(ctx.point_json, ctx.secret_key);
@@ -196,7 +196,7 @@ namespace Network {
         p["customerId"] = "1433554008613634050";
         p["customerName"] = user.name;
         p["customerTel"] = user.phone;
-        p["userNum"] = "1";
+        p["userNum"] = 1;
         p["customerEmail"] = "";
         p["gymId"] = "1297443858304540673";
         p["gymName"] = "润杨羽毛球馆";
