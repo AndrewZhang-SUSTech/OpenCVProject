@@ -31,7 +31,7 @@ void init_logger() {
     }
 }
 
-int main() {
+int main(int argc, char* argv[]) {
     init_logger();
     User user;
     user.name = "TestUser";
@@ -39,13 +39,22 @@ int main() {
     user.phone = 13800138000;
     user.token = "dummy_token";
 
+    int Total = 200;
+    int Concurrency = 10;
+
+    if (argc > 1) {
+        Total = std::stoi(argv[1]);
+    }
+    if (argc > 2) {
+        Concurrency = std::stoi(argv[2]);
+    }
+
     std::cout << "Starting Network Benchmark..." << std::endl;
+    std::cout << "Config: Total Requests = " << Total << ", Concurrency = " << Concurrency << std::endl;
 
     std::string verification = "dummy_verification_string";
 
     try {
-        int Total = 200;
-        int Concurrency = 10;
         std::cout << "1. Testing get_verified_token (" << Total << " requests, concurrency " << Concurrency << ")..."
                   << std::endl;
 
@@ -128,8 +137,10 @@ int main() {
     std::cout << "\n----------------------------------------\n" << std::endl;
 
     try {
-        int ReserveTotal = 100;
-        int Concurrency = 10;
+        int ReserveTotal = Total / 2;  // Reserve tests typically take longer or fail differently, scaling down slightly
+                                       // or keeping proportional
+        if (ReserveTotal == 0) ReserveTotal = 1;
+
         std::cout << "2. Testing reserve request (" << ReserveTotal << " requests, concurrency " << Concurrency
                   << ")..." << std::endl;
 
