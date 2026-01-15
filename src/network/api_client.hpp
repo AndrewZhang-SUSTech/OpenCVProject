@@ -8,9 +8,10 @@
 #include "../common/types.hpp"
 
 namespace Network {
-    async_simple::coro::Lazy<Result<void>> validate_token(const User& user);
-    async_simple::coro::Lazy<Result<std::string>> get_verified_token(const User& user);
-    async_simple::coro::Lazy<Result<void>> reserve(const User& user, std::string_view verification,
-                                                   std::string_view time_start, std::string_view time_end,
-                                                   std::string_view date, int court_index);
+    async_simple::coro::Lazy<Result<void>> validate_token(coro_http::coro_http_client& client, const User& user);
+    async_simple::coro::Lazy<Result<std::string>> get_verified_token(coro_http::coro_http_client& client,
+                                                                     const User& user);
+    async_simple::coro::Lazy<Result<void>> reserve(coro_http::coro_http_client& client, const User& user,
+                                                   std::string_view verification, std::string_view time_start,
+                                                   std::string_view time_end, std::string_view date, int court_index);
 }  // namespace Network

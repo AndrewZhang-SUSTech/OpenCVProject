@@ -1,6 +1,6 @@
 #include "config.hpp"
 #include <fmt/core.h>
-#include <quill/LogMacros.h>
+// #include <quill/LogMacros.h>
 #include <yaml-cpp/yaml.h>
 #include <chrono>
 #include <cstdio>

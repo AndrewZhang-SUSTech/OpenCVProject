@@ -14,7 +14,7 @@
 #include "../src/network/api_client.hpp"
 #include "../src/network/api_client_profiling.hpp"
 
-// Performance metrics structure
+// Performance metrics for single request measurement
 struct RequestMetrics {
     double total_time_ms;
     double network_time_ms;
@@ -22,7 +22,7 @@ struct RequestMetrics {
     size_t bytes_received;
     bool success;
 
-    // Detailed breakdown (for CAPTCHA profiling)
+    // Detailed CAPTCHA processing breakdown
     double captcha_get_ms = 0;
     double captcha_parse_ms = 0;
     double captcha_check_ms = 0;

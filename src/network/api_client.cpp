@@ -12,7 +12,7 @@
 #include <random>
 #include <string>
 #include <thread>
-#include <ylt/coro_io/client_pool.hpp>
+#include <ylt/coro_http/coro_http_client.hpp>
 
 #ifdef RESERVATION_SINGLETHREAD_ENABLED
 #include <ylt/coro_io/io_context_pool.hpp>
@@ -26,68 +26,49 @@ static inline std::random_device rd{};
 
 namespace Network {
 
-    auto client_pool = coro_io::client_pool<coro_http::coro_http_client>::create("https://reservation.sustech.edu.cn",
-                                                                                 {.max_connection = 200});
-
     struct CaptchaContext {
         std::string token;
         std::string secret_key;
         std::string point_json;
     };
 
-    BotError pool_error_to_bot_error(std::errc ec) {
-        return BotError(fmt::format("Network Pool Error: {}", std::make_error_code(ec).message()));
+    async_simple::coro::Lazy<Result<void>> validate_token(coro_http::coro_http_client& client, const User& user) {
+        auto result = co_await client.async_get(
+            fmt::format("https://reservation.sustech.edu.cn/api/blade-app/qywx/"
+                        "getAppGymPageByCustomerId?userid={}&token={}&current=1&size=50&gymName=",
+                        user.id, user.token));
+
+        if (result.status != 200) {
+            co_return tl::unexpected(BotError(fmt::format("HTTP Error: {}", result.status)));
+        }
+
+        try {
+            nlohmann::json j = nlohmann::json::parse(result.resp_body);
+            if (j["code"].get<int>() != 200) {
+                co_return tl::unexpected(BotError(fmt::format("Token validation failed: {}", result.resp_body)));
+            }
+            LOG_INFO(logger, "Token is valid.");
+            co_return Result<void>{};
+        } catch (...) {
+            co_return tl::unexpected(BotError("Failed to parse token validation response"));
+        }
     }
 
-    async_simple::coro::Lazy<Result<void>> validate_token(const User& user) {
-        auto pool_result = co_await client_pool->send_request(
-            [&user](coro_http::coro_http_client& client) -> async_simple::coro::Lazy<Result<void>> {
-                auto result = co_await client.async_get(
-                    fmt::format("https://reservation.sustech.edu.cn/api/blade-app/qywx/"
-                                "getAppGymPageByCustomerId?userid={}&token={}&current=1&size=50&gymName=",
-                                user.id, user.token));
-
-                if (result.status != 200) {
-                    co_return tl::unexpected(BotError(fmt::format("HTTP Error: {}", result.status)));
-                }
-
-                try {
-                    nlohmann::json j = nlohmann::json::parse(result.resp_body);
-                    if (j["code"].get<int>() != 200) {
-                        co_return tl::unexpected(
-                            BotError(fmt::format("Token validation failed: {}", result.resp_body)));
-                    }
-                    LOG_INFO(logger, "Token is valid.");
-                    co_return Result<void>{};
-                } catch (...) {
-                    co_return tl::unexpected(BotError("Failed to parse token validation response"));
-                }
-            });
-
-        if (!pool_result) co_return tl::unexpected(pool_error_to_bot_error(pool_result.error()));
-        co_return pool_result.value();
-    }
-
-    async_simple::coro::Lazy<Result<std::string>> get_verified_token(const User& user) {
+    async_simple::coro::Lazy<Result<std::string>> get_verified_token(coro_http::coro_http_client& client,
+                                                                     const User& user) {
         CaptchaContext ctx;
-        std::string resp_body_get;
 
-        auto pool_res_1 = co_await client_pool->send_request(
-            [&](coro_http::coro_http_client& client) -> async_simple::coro::Lazy<Result<std::string>> {
-                auto result = co_await client.async_post("https://reservation.sustech.edu.cn/api/captcha/get",
-                                                         std::string(Constants::CAPTCHA_PAYLOAD),
-                                                         coro_http::req_content_type::json);
-                if (result.status != 200)
-                    co_return tl::unexpected(BotError(fmt::format("HTTP Error fetching captcha: {}", result.status)));
+        // 1. GET Captcha
+        auto result =
+            co_await client.async_post("https://reservation.sustech.edu.cn/api/captcha/get",
+                                       std::string(Constants::CAPTCHA_PAYLOAD), coro_http::req_content_type::json);
+        if (result.status != 200)
+            co_return tl::unexpected(BotError(fmt::format("HTTP Error fetching captcha: {}", result.status)));
 
-                co_return std::string(result.resp_body);
-            });
+        std::string resp_body_get(result.resp_body);
 
-        if (!pool_res_1) co_return tl::unexpected(pool_error_to_bot_error(pool_res_1.error()));
-        if (!pool_res_1.value()) co_return tl::unexpected(pool_res_1.value().error());
-        resp_body_get = std::move(pool_res_1.value().value());
-
-        auto solve_res = co_await coro_io::post([&resp_body_get, &ctx]() -> Result<int64_t> {
+        // 2. CPU Task: Parse, Solve, Encrypt
+        auto solve_ctx_res = co_await coro_io::post([&resp_body_get, &ctx]() -> Result<std::string> {
             static thread_local simdjson::dom::parser parser;
             std::string jigsaw_b64, original_b64;
 
@@ -119,73 +100,65 @@ namespace Network {
             auto original_bytes = Crypto::base64_decode(original_b64);
             if (!jigsaw_bytes || !original_bytes) return tl::unexpected(jigsaw_bytes.error());
 
-            return Captcha::solve(*jigsaw_bytes, *original_bytes);
+            auto solve_res = Captcha::solve(*jigsaw_bytes, *original_bytes);
+            if (!solve_res) return tl::unexpected(solve_res.error());
+
+            {
+                static thread_local std::mt19937_64 gen{rd()};
+                static thread_local std::uniform_real_distribution<double> dis(-2.0, 2.0);
+                double final_x = solve_res.value() + dis(gen);
+                ctx.point_json = fmt::format(R"({{"x":{:.6f},"y":5}})", final_x);
+            }
+
+            auto enc_point = Crypto::aes_encrypt_ecb(ctx.point_json, ctx.secret_key);
+            if (!enc_point) return tl::unexpected(enc_point.error());
+            return *enc_point;
         });
 
-        if (solve_res.hasError()) {
+        if (solve_ctx_res.hasError()) {
             try {
-                std::rethrow_exception(solve_res.getException());
+                std::rethrow_exception(solve_ctx_res.getException());
             } catch (const std::exception& e) {
-                co_return tl::unexpected(BotError(fmt::format("Failed to solve captcha: {}", e.what())));
+                co_return tl::unexpected(BotError(fmt::format("Task failed: {}", e.what())));
             }
         }
+        if (!solve_ctx_res.value()) co_return tl::unexpected(solve_ctx_res.value().error());
 
-        {
-            static thread_local std::mt19937_64 gen{rd()};
-            static thread_local std::uniform_real_distribution<double> dis(-2.0, 2.0);
-            double final_x = *solve_res.value() + dis(gen);
-            ctx.point_json = fmt::format(R"({{"x":{:.6f},"y":5}})", final_x);
-        }
-
-        auto enc_point = Crypto::aes_encrypt_ecb(ctx.point_json, ctx.secret_key);
-        if (!enc_point) co_return tl::unexpected(enc_point.error());
-
+        // 3. Prepare Check Payload
         nlohmann::json check_payload;
         check_payload["captchaType"] = "blockPuzzle";
-        check_payload["pointJson"] = *enc_point;
+        check_payload["pointJson"] = solve_ctx_res.value().value();
         check_payload["token"] = ctx.token;
         std::string payload_str = check_payload.dump();
 
-        auto pool_res_2 = co_await client_pool->send_request(
-            [&](coro_http::coro_http_client& client) -> async_simple::coro::Lazy<Result<void>> {
-                auto result = co_await client.async_post("https://reservation.sustech.edu.cn/api/captcha/check",
-                                                         payload_str, coro_http::req_content_type::json);
+        // 4. POST Check
+        auto result2 = co_await client.async_post("https://reservation.sustech.edu.cn/api/captcha/check", payload_str,
+                                                  coro_http::req_content_type::json);
 
-                try {
-                    auto j = nlohmann::json::parse(result.resp_body);
-                    if (!j["success"].get<bool>()) {
-                        co_return tl::unexpected(BotError(fmt::format("Captcha check failed: {}", result.resp_body)));
-                    }
-                } catch (...) {
-                    co_return tl::unexpected(BotError("Failed to parse check response"));
-                }
-                co_return Result<void>{};
-            });
-
-        if (!pool_res_2) co_return tl::unexpected(pool_error_to_bot_error(pool_res_2.error()));
-        if (!pool_res_2.value()) co_return tl::unexpected(pool_res_2.value().error());
-
-        LOG_INFO(logger, "{} is validated.", ctx.point_json);
-
-        std::string combine = fmt::format("{}---{}", ctx.token, ctx.point_json);
-        auto final_result = co_await coro_io::post(
-            [&combine, secret_key = ctx.secret_key]() { return Crypto::aes_encrypt_ecb(combine, secret_key); });
-
-        if (final_result.hasError()) {
-            try {
-                std::rethrow_exception(final_result.getException());
-            } catch (const std::exception& e) {
-                co_return tl::unexpected(BotError(fmt::format("Failed to encrypt final result: {}", e.what())));
+        try {
+            auto j = nlohmann::json::parse(result2.resp_body);
+            if (!j["success"].get<bool>()) {
+                co_return tl::unexpected(BotError(fmt::format("Captcha check failed: {}", result2.resp_body)));
             }
+        } catch (...) {
+            co_return tl::unexpected(BotError("Failed to parse check response"));
         }
 
-        co_return final_result.value();
+        // 5. Final Encrypt (Run synchronously, AES is fast)
+        std::string combine = fmt::format("{}---{}", ctx.token, ctx.point_json);
+        auto final_result_exp = Crypto::aes_encrypt_ecb(combine, ctx.secret_key);
+
+        if (!final_result_exp) {
+            co_return tl::unexpected(final_result_exp.error());
+        }
+
+        co_return final_result_exp.value();
     }
 
     // 3. 抢票 (单次 IO)
-    async_simple::coro::Lazy<Result<void>> reserve(const User& user, std::string_view verification,
-                                                   std::string_view time_start, std::string_view time_end,
-                                                   std::string_view date, int court_index) {
+    async_simple::coro::Lazy<Result<void>> reserve(coro_http::coro_http_client& client, const User& user,
+                                                   std::string_view verification, std::string_view time_start,
+                                                   std::string_view time_end, std::string_view date, int court_index) {
         if (court_index < 1 || court_index > (int)Constants::GROUND_NUM) {
             co_return tl::unexpected(BotError(fmt::format("Invalid court index: {}", court_index)));
         }
@@ -216,24 +189,18 @@ namespace Network {
         std::string url = fmt::format(
             "https://reservation.sustech.edu.cn/api/blade-app/qywx/saveOrder?userid={}&token={}", user.id, user.token);
 
-        auto pool_result = co_await client_pool->send_request(
-            [&](coro_http::coro_http_client& client) -> async_simple::coro::Lazy<Result<void>> {
-                auto res = co_await client.async_post(url, payload_str, coro_http::req_content_type::json);
+        auto res = co_await client.async_post(url, payload_str, coro_http::req_content_type::json);
 
-                try {
-                    auto j = nlohmann::json::parse(res.resp_body);
-                    if (j["success"].get<bool>()) {
-                        co_return Result<void>{};
-                    } else {
-                        std::string msg = j.value("msg", "Unknown error");
-                        co_return tl::unexpected(BotError(msg));
-                    }
-                } catch (...) {
-                    co_return tl::unexpected(BotError("Failed to parse order response"));
-                }
-            });
-
-        if (!pool_result) co_return tl::unexpected(pool_error_to_bot_error(pool_result.error()));
-        co_return pool_result.value();
+        try {
+            auto j = nlohmann::json::parse(res.resp_body);
+            if (j["success"].get<bool>()) {
+                co_return Result<void>{};
+            } else {
+                std::string msg = j.value("msg", "Unknown error");
+                co_return tl::unexpected(BotError(msg));
+            }
+        } catch (...) {
+            co_return tl::unexpected(BotError("Failed to parse order response"));
+        }
     }
 }  // namespace Network

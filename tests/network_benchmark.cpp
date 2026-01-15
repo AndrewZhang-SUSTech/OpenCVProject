@@ -1,9 +1,10 @@
 #include <async_simple/coro/Collect.h>
 #include <async_simple/coro/SyncAwait.h>
-#include <quill/Backend.h>
-#include <quill/Frontend.h>
-#include <quill/LogFunctions.h>
-#include <quill/sinks/ConsoleSink.h>
+// #include <quill/Backend.h>
+// #include <quill/Frontend.h>
+// #include <quill/LogFunctions.h>
+// #include <quill/sinks/ConsoleSink.h>
+#include <ylt/util/concurrentqueue.h>
 #include <algorithm>
 #include <atomic>
 #include <chrono>
@@ -15,20 +16,20 @@
 #include "../src/common/log.hpp"
 #include "../src/common/types.hpp"
 #include "../src/network/api_client.hpp"
-#include "quill/backend/BackendOptions.h"
+// #include "quill/backend/BackendOptions.h"
 
 void init_logger() {
-    try {
-        logger = quill::Frontend::create_or_get_logger(
-            "Logger", quill::Frontend::create_or_get_sink<quill::ConsoleSink>("console_sink"),
-            quill::PatternFormatterOptions{
-                "%(time) [%(thread_id)] %(short_source_location:<28) %(log_level:<9) %(message)", "%H:%M:%S.%Qms",
-                quill::Timezone::LocalTime, false});
-        quill::BackendOptions backend_options;
-        backend_options.check_printable_char = {};
-        quill::Backend::start(backend_options);
-    } catch (...) {
-    }
+    // try {
+    //     logger = quill::Frontend::create_or_get_logger(
+    //         "Logger", quill::Frontend::create_or_get_sink<quill::ConsoleSink>("console_sink"),
+    //         quill::PatternFormatterOptions{
+    //             "%(time) [%(thread_id)] %(short_source_location:<28) %(log_level:<9) %(message)", "%H:%M:%S.%Qms",
+    //             quill::Timezone::LocalTime, false});
+    //     quill::BackendOptions backend_options;
+    //     backend_options.check_printable_char = {};
+    //     quill::Backend::start(backend_options);
+    // } catch (...) {
+    // }
 }
 
 int main(int argc, char* argv[]) {
@@ -60,31 +61,28 @@ int main(int argc, char* argv[]) {
 
         std::cout << "   Warming up pool..." << std::endl;
         try {
-            auto warmup = async_simple::coro::syncAwait(Network::get_verified_token(user));
+            coro_http::coro_http_client warmup_client{};
+            auto warmup = async_simple::coro::syncAwait(Network::get_verified_token(warmup_client, user));
         } catch (...) {
         }
 
-        std::vector<double> times;
-        times.reserve(Total);
-        std::mutex times_mutex;
+        ylt::detail::moodycamel::ConcurrentQueue<double> times_queue;
         std::atomic<int> current_idx{0};
 
         auto start_total = std::chrono::high_resolution_clock::now();
 
         auto worker = [&]() -> async_simple::coro::Lazy<void> {
+            coro_http::coro_http_client client{};
             while (true) {
                 int i = current_idx.fetch_add(1);
                 if (i >= Total) {
                     co_return;
                 }
                 auto start = std::chrono::high_resolution_clock::now();
-                auto result = co_await Network::get_verified_token(user);
+                auto result = co_await Network::get_verified_token(client, user);
                 auto end = std::chrono::high_resolution_clock::now();
                 std::chrono::duration<double, std::milli> elapsed = end - start;
-                {
-                    std::lock_guard<std::mutex> lock(times_mutex);
-                    times.push_back(elapsed.count());
-                }
+                times_queue.enqueue(elapsed.count());
             }
         };
 
@@ -99,6 +97,12 @@ int main(int argc, char* argv[]) {
         auto end_total = std::chrono::high_resolution_clock::now();
 
         std::chrono::duration<double, std::milli> elapsed_total = end_total - start_total;
+
+        std::vector<double> times;
+        double t_val;
+        while (times_queue.try_dequeue(t_val)) {
+            times.push_back(t_val);
+        }
 
         if (times.empty()) {
             std::cerr << "No results collected!" << std::endl;
@@ -144,21 +148,20 @@ int main(int argc, char* argv[]) {
         std::cout << "2. Testing reserve request (" << ReserveTotal << " requests, concurrency " << Concurrency
                   << ")..." << std::endl;
 
-        std::vector<double> reserve_times;
-        reserve_times.reserve(ReserveTotal);
-        std::mutex reserve_mutex;
+        ylt::detail::moodycamel::ConcurrentQueue<double> reserve_times_queue;
         std::atomic<int> reserve_idx{0};
 
         auto start_reserve_total = std::chrono::high_resolution_clock::now();
 
         auto reserve_worker = [&]() -> async_simple::coro::Lazy<void> {
+            coro_http::coro_http_client client{};
             while (true) {
                 int i = reserve_idx.fetch_add(1);
                 if (i >= ReserveTotal) {
                     co_return;
                 }
                 auto start = std::chrono::high_resolution_clock::now();
-                auto result = co_await Network::reserve(user, verification,
+                auto result = co_await Network::reserve(client, user, verification,
                                                         "18:00",       // time_start
                                                         "19:00",       // time_end
                                                         "2026-01-01",  // date
@@ -166,10 +169,7 @@ int main(int argc, char* argv[]) {
                 );
                 auto end = std::chrono::high_resolution_clock::now();
                 std::chrono::duration<double, std::milli> elapsed = end - start;
-                {
-                    std::lock_guard<std::mutex> lock(reserve_mutex);
-                    reserve_times.push_back(elapsed.count());
-                }
+                reserve_times_queue.enqueue(elapsed.count());
             }
         };
 
@@ -183,6 +183,12 @@ int main(int argc, char* argv[]) {
 
         auto end_reserve_total = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> elapsed_reserve_total = end_reserve_total - start_reserve_total;
+
+        std::vector<double> reserve_times;
+        double t_val;
+        while (reserve_times_queue.try_dequeue(t_val)) {
+            reserve_times.push_back(t_val);
+        }
 
         if (reserve_times.empty()) {
             std::cerr << "No results collected for reserve!" << std::endl;

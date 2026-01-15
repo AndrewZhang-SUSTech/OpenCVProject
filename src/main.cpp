@@ -12,26 +12,27 @@
 #include "config/config.hpp"
 #include "network/api_client.hpp"
 
-#include <quill/Backend.h>
-#include <quill/Frontend.h>
-#include <quill/LogFunctions.h>
-#include <quill/sinks/ConsoleSink.h>
-#include "quill/backend/BackendOptions.h"
+// #include <quill/Backend.h>
+// #include <quill/Frontend.h>
+// #include <quill/LogFunctions.h>
+// #include <quill/sinks/ConsoleSink.h>
+// #include "quill/backend/BackendOptions.h"
 
 Result<void> init_logger() noexcept {
-    try {
-        logger = quill::Frontend::create_or_get_logger(
-            "Logger", quill::Frontend::create_or_get_sink<quill::ConsoleSink>("console_sink"),
-            quill::PatternFormatterOptions{
-                "%(time) [%(thread_id)] %(short_source_location:<28) %(log_level:<9) %(message)", "%H:%M:%S.%Qms",
-                quill::Timezone::LocalTime, false});
-        quill::BackendOptions backend_options;
-        backend_options.check_printable_char = {};
-        quill::Backend::start(backend_options);
-        return Result<void>{};
-    } catch (const std::exception& e) {
-        return tl::unexpected(BotError(fmt::format("Logger initialization failed: {}", e.what())));
-    }
+    // try {
+    //     logger = quill::Frontend::create_or_get_logger(
+    //         "Logger", quill::Frontend::create_or_get_sink<quill::ConsoleSink>("console_sink"),
+    //         quill::PatternFormatterOptions{
+    //             "%(time) [%(thread_id)] %(short_source_location:<28) %(log_level:<9) %(message)", "%H:%M:%S.%Qms",
+    //             quill::Timezone::LocalTime, false});
+    //     quill::BackendOptions backend_options;
+    //     backend_options.check_printable_char = {};
+    //     quill::Backend::start(backend_options);
+    //     return Result<void>{};
+    // } catch (const std::exception& e) {
+    //     return tl::unexpected(BotError(fmt::format("Logger initialization failed: {}", e.what())));
+    // }
+    return Result<void>{};
 }
 
 int main() {
@@ -62,13 +63,15 @@ int main() {
     }
 
     async_simple::coro::syncAwait([&user_data = std::as_const(user_data)]() -> async_simple::coro::Lazy<void> {
-        if (auto validate_res = co_await Network::validate_token(user_data); !validate_res) {
+        coro_http::coro_http_client client{};
+        if (auto validate_res = co_await Network::validate_token(client, user_data); !validate_res) {
             LOG_CRITICAL(logger, "Failed to validate token: {}", validate_res.error().to_string());
         }
     }());
 
     async_simple::coro::syncAwait([&user_data = std::as_const(user_data)]() -> async_simple::coro::Lazy<void> {
-        if (auto token_res = co_await Network::get_verified_token(user_data); !token_res) {
+        coro_http::coro_http_client client{};
+        if (auto token_res = co_await Network::get_verified_token(client, user_data); !token_res) {
             LOG_ERROR(logger, "Failed to obtain verified token: {}", token_res.error().to_string());
         }
     }());

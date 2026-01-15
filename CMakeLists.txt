@@ -95,8 +95,6 @@ CPMAddPackage(
     NAME json
     GIT_REPOSITORY https://github.com/nlohmann/json.git
     GIT_TAG v3.12.0
-    OPTIONS
-        
 )
 
 CPMAddPackage(
@@ -113,19 +111,6 @@ CPMAddPackage(
         "YAML_CPP_BUILD_TOOLS OFF"
         "CMAKE_POLICY_VERSION_MINIMUM 3.5"
 )
-
-# CPMAddPackage(
-#     NAME Quill
-#     GIT_REPOSITORY https://github.com/odygrd/quill.git
-#     GIT_TAG v11.0.2
-#     OPTIONS
-#         "QUILL_FMT_EXTERNAL ON"
-# )
-
-# CPMAddPackage(
-#     NAME concurrentqueue
-#     URL https://github.com/cameron314/concurrentqueue/archive/refs/tags/v1.0.4.tar.gz
-# )
 
 CPMAddPackage(
     NAME simdjson
@@ -174,7 +159,6 @@ target_link_libraries(BotCore PUBLIC
     yalantinglibs::yalantinglibs
     nlohmann_json::nlohmann_json
     yaml-cpp::yaml-cpp
-    # quill::quill
     fmt::fmt
     ${OpenCV_LIBS}
     simdjson::simdjson
@@ -245,4 +229,23 @@ else()
 endif()
 
 add_test(NAME NetworkProfiling COMMAND network_profiling)
+
+add_executable(network_profiling_local tests/network_profiling_local.cpp src/network/api_client_profiling.cpp)
+target_link_libraries(network_profiling_local PRIVATE BotCore yalantinglibs::yalantinglibs)
+
+if(MSVC)
+    target_link_options(network_profiling_local PRIVATE $<$<CONFIG:Release>:/DEBUG:NONE>)
+elseif(WIN32 AND (CMAKE_CXX_COMPILER_ID STREQUAL "Clang" OR CMAKE_CXX_COMPILER_ID STREQUAL "GNU"))
+    target_link_options(network_profiling_local PRIVATE
+        $<$<CONFIG:Release>:-static -s>
+        $<$<CONFIG:RelWithDebInfo>:-static>
+    )
+else()
+    target_link_options(network_profiling_local PRIVATE
+        $<$<CONFIG:Release>:-static-libstdc++ -static-libgcc -s>
+        $<$<CONFIG:RelWithDebInfo>:-static-libstdc++ -static-libgcc>
+    )
+endif()
+
+add_test(NAME NetworkProfilingLocal COMMAND network_profiling_local)
 
