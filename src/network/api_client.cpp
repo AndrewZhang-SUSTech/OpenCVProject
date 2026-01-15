@@ -165,7 +165,7 @@ namespace Network {
         if (!pool_res_2) co_return tl::unexpected(pool_error_to_bot_error(pool_res_2.error()));
         if (!pool_res_2.value()) co_return tl::unexpected(pool_res_2.value().error());
 
-        LOG_INFO(logger, "{} is validated.", ctx.point_json);
+        LOG_DEBUG(logger, "{} is validated.", ctx.point_json);
 
         std::string combine = fmt::format("{}---{}", ctx.token, ctx.point_json);
         auto final_result = co_await coro_io::post(
