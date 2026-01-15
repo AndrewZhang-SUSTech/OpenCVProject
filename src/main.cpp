@@ -62,13 +62,12 @@ int main() {
     }
 
     async_simple::coro::syncAwait([&user_data = std::as_const(user_data)]() -> async_simple::coro::Lazy<void> {
-        if (auto validate_res = co_await Network::validate_token(user_data); !validate_res) {
+        coro_http::coro_http_client client;
+        if (auto validate_res = co_await Network::validate_token(client, user_data); !validate_res) {
             LOG_CRITICAL(logger, "Failed to validate token: {}", validate_res.error().to_string());
         }
-    }());
 
-    async_simple::coro::syncAwait([&user_data = std::as_const(user_data)]() -> async_simple::coro::Lazy<void> {
-        if (auto token_res = co_await Network::get_verified_token(user_data); !token_res) {
+        if (auto token_res = co_await Network::get_verified_token(client, user_data); !token_res) {
             LOG_ERROR(logger, "Failed to obtain verified token: {}", token_res.error().to_string());
         }
     }());

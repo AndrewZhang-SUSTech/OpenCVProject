@@ -60,7 +60,8 @@ int main(int argc, char* argv[]) {
 
         std::cout << "   Warming up pool..." << std::endl;
         try {
-            auto warmup = async_simple::coro::syncAwait(Network::get_verified_token(user));
+            coro_http::coro_http_client client;
+            auto warmup = async_simple::coro::syncAwait(Network::get_verified_token(client, user));
         } catch (...) {
         }
 
@@ -72,13 +73,14 @@ int main(int argc, char* argv[]) {
         auto start_total = std::chrono::high_resolution_clock::now();
 
         auto worker = [&]() -> async_simple::coro::Lazy<void> {
+            coro_http::coro_http_client client;
             while (true) {
                 int i = current_idx.fetch_add(1);
                 if (i >= Total) {
                     co_return;
                 }
                 auto start = std::chrono::high_resolution_clock::now();
-                auto result = co_await Network::get_verified_token(user);
+                auto result = co_await Network::get_verified_token(client, user);
                 auto end = std::chrono::high_resolution_clock::now();
                 std::chrono::duration<double, std::milli> elapsed = end - start;
                 {
@@ -152,13 +154,14 @@ int main(int argc, char* argv[]) {
         auto start_reserve_total = std::chrono::high_resolution_clock::now();
 
         auto reserve_worker = [&]() -> async_simple::coro::Lazy<void> {
+            coro_http::coro_http_client client;
             while (true) {
                 int i = reserve_idx.fetch_add(1);
                 if (i >= ReserveTotal) {
                     co_return;
                 }
                 auto start = std::chrono::high_resolution_clock::now();
-                auto result = co_await Network::reserve(user, verification,
+                auto result = co_await Network::reserve(client, user, verification,
                                                         "18:00",       // time_start
                                                         "19:00",       // time_end
                                                         "2026-01-01",  // date
