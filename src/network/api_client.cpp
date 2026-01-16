@@ -5,6 +5,7 @@
 #include "../config/config.hpp"
 #include "../utils/crypto.hpp"
 
+#include <fmt/chrono.h>
 #include <fmt/core.h>
 #include <simdjson.h>
 #include <exception>
@@ -37,10 +38,39 @@ namespace Network {
             if (j["code"].get<int>() != 200) {
                 co_return tl::unexpected(BotError(fmt::format("Token validation failed: {}", result.resp_body)));
             }
-            LOG_INFO(logger, "Token is valid.");
+            LOG_DEBUG(logger, "Token is valid.");
             co_return Result<void>{};
         } catch (...) {
             co_return tl::unexpected(BotError("Failed to parse token validation response"));
+        }
+    }
+
+    async_simple::coro::Lazy<Result<std::chrono::system_clock::time_point>> get_server_time(
+        coro_http::coro_http_client& client) {
+        auto result = co_await client.async_get("https://vv.video.qq.com/checktime");
+        if (result.status != 200) {
+            co_return tl::unexpected(BotError(fmt::format("HTTP Error fetching server time: {}", result.status)));
+        }
+
+        try {
+            std::string_view body = result.resp_body;
+            size_t start = body.find("<t>");
+            size_t end = body.find("</t>");
+            if (start == std::string_view::npos || end == std::string_view::npos || end <= start + 3) {
+                co_return tl::unexpected(BotError("Failed to parse server time XML"));
+            }
+
+            std::string_view ts_sv(body.data() + start + 3, end - start - 3);
+            long long ts = 0;
+            auto fc = std::from_chars(ts_sv.data(), ts_sv.data() + ts_sv.size(), ts);
+            if (fc.ec != std::errc() || fc.ptr != ts_sv.data() + ts_sv.size()) {
+                co_return tl::unexpected(BotError("Failed to parse server time"));
+            }
+
+            auto tp = std::chrono::system_clock::from_time_t(static_cast<std::time_t>(ts));
+            co_return tp;
+        } catch (const std::exception& e) {
+            co_return tl::unexpected(BotError(fmt::format("Error parsing server time: {}", e.what())));
         }
     }
 
@@ -147,12 +177,23 @@ namespace Network {
 
     // 3. 抢票 (单次 IO)
     async_simple::coro::Lazy<Result<void>> reserve(coro_http::coro_http_client& client, const User& user,
-                                                   std::string_view verification, std::string_view time_start,
-                                                   std::string_view time_end, std::string_view date, int court_index) {
+                                                   std::string_view verification,
+                                                   std::chrono::system_clock::time_point start_time,
+                                                   std::chrono::system_clock::time_point end_time, int court_index) {
         if (court_index < 1 || court_index > (int)Constants::GROUND_NUM) {
             co_return tl::unexpected(BotError(fmt::format("Invalid court index: {}", court_index)));
         }
         const auto& ground = Constants::GROUNDS[court_index - 1];
+
+        auto now = std::chrono::system_clock::now();
+        std::time_t now_c = std::chrono::system_clock::to_time_t(now);
+        std::string order_time = fmt::format("{:%Y-%m-%d %H:%M:%S}", *std::localtime(&now_c));
+
+        std::time_t start_t = std::chrono::system_clock::to_time_t(start_time);
+        std::time_t end_t = std::chrono::system_clock::to_time_t(end_time);
+
+        std::string full_start_time = fmt::format("{:%Y-%m-%d %H:%M:%S}", *std::localtime(&start_t));
+        std::string full_end_time = fmt::format("{:%Y-%m-%d %H:%M:%S}", *std::localtime(&end_t));
 
         nlohmann::json p;
         p["captchaVerification"] = verification;
@@ -168,16 +209,22 @@ namespace Network {
         p["groundType"] = "0";
         p["messagePushType"] = "0";
         p["isIllegal"] = "0";
-        p["orderDate"] = date;
-        p["startTime"] = time_start;
-        p["endTime"] = time_end;
-        p["tmpOrderDate"] = date;
-        p["tmpStartTime"] = time_start;
-        p["tmpEndTime"] = time_end;
+        p["orderDate"] = order_time;
+        p["startTime"] = full_start_time;
+        p["endTime"] = full_end_time;
+        p["tmpOrderDate"] = order_time;
+        p["tmpStartTime"] = full_start_time;
+        p["tmpEndTime"] = full_end_time;
         std::string payload_str = p.dump();
 
         std::string url = fmt::format(
             "https://reservation.sustech.edu.cn/api/blade-app/qywx/saveOrder?userid={}&token={}", user.id, user.token);
+
+        client.add_header("Origin", "https://reservation.sustech.edu.cn");
+        client.add_header("User-Agent",
+                          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) "
+                          "Language/en ColorScheme/Light DistType/publish-store wxwork/4.1.32 (MicroMessenger/6.2) "
+                          "WeChat/2.0.4 wwmver/3.26.15.616 Safari/605.1.15");
 
         auto res = co_await client.async_post(url, payload_str, coro_http::req_content_type::json);
 

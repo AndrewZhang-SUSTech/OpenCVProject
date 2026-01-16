@@ -9,9 +9,12 @@
 
 namespace Network {
     async_simple::coro::Lazy<Result<void>> validate_token(coro_http::coro_http_client& client, const User& user);
+    async_simple::coro::Lazy<Result<std::chrono::system_clock::time_point>> get_server_time(
+        coro_http::coro_http_client& client);
     async_simple::coro::Lazy<Result<std::string>> get_verified_token(coro_http::coro_http_client& client,
                                                                      const User& user);
     async_simple::coro::Lazy<Result<void>> reserve(coro_http::coro_http_client& client, const User& user,
-                                                   std::string_view verification, std::string_view time_start,
-                                                   std::string_view time_end, std::string_view date, int court_index);
+                                                   std::string_view verification,
+                                                   std::chrono::system_clock::time_point start_time,
+                                                   std::chrono::system_clock::time_point end_time, int court_index);
 }  // namespace Network

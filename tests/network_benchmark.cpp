@@ -161,12 +161,17 @@ int main(int argc, char* argv[]) {
                     co_return;
                 }
                 auto start = std::chrono::high_resolution_clock::now();
-                auto result = co_await Network::reserve(client, user, verification,
-                                                        "18:00",       // time_start
-                                                        "19:00",       // time_end
-                                                        "2026-01-01",  // date
-                                                        1              // court_index
-                );
+
+                std::tm t = {};
+                t.tm_year = 2026 - 1900;
+                t.tm_mon = 0;
+                t.tm_mday = 1;
+                t.tm_hour = 18;
+                auto tp_start = std::chrono::system_clock::from_time_t(std::mktime(&t));
+                t.tm_hour = 19;
+                auto tp_end = std::chrono::system_clock::from_time_t(std::mktime(&t));
+
+                auto result = co_await Network::reserve(client, user, verification, tp_start, tp_end, 1);
                 auto end = std::chrono::high_resolution_clock::now();
                 std::chrono::duration<double, std::milli> elapsed = end - start;
                 {
