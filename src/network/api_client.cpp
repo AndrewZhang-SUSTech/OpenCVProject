@@ -8,7 +8,8 @@
 #include <fmt/chrono.h>
 #include <fmt/core.h>
 #include <simdjson.h>
-#include <exception>
+#include <asio.hpp>
+#include <asio/use_awaitable.hpp>
 #include <nlohmann/json.hpp>
 #include <random>
 #include <string>
@@ -23,7 +24,8 @@ namespace Network {
         std::string point_json;
     };
 
-    async_simple::coro::Lazy<Result<void>> validate_token(coro_http::coro_http_client& client, const User& user) {
+    async_simple::coro::Lazy<Result<void>> validate_token(const User& user) {
+        coro_http::coro_http_client client{};
         auto result = co_await client.async_get(
             fmt::format("https://reservation.sustech.edu.cn/api/blade-app/qywx/"
                         "getAppGymPageByCustomerId?userid={}&token={}&current=1&size=50&gymName=",
@@ -45,33 +47,37 @@ namespace Network {
         }
     }
 
-    async_simple::coro::Lazy<Result<std::chrono::system_clock::time_point>> get_server_time(
-        coro_http::coro_http_client& client) {
-        auto result = co_await client.async_get("https://vv.video.qq.com/checktime");
-        if (result.status != 200) {
-            co_return tl::unexpected(BotError(fmt::format("HTTP Error fetching server time: {}", result.status)));
+    async_simple::coro::Lazy<Result<std::chrono::system_clock::time_point>> get_server_time() {
+        using namespace asio::ip;
+
+        constexpr uint64_t NTP_UNIX_OFFSET = 2208988800ULL;
+        std::array<uint8_t, 48> send_data{0x23}, recv_data{};
+        asio::io_context::executor_type executor = coro_io::get_global_executor()->get_asio_executor();
+
+        udp::resolver resolver(executor);
+        udp::socket socket(executor, udp::v4());
+
+        udp::endpoint receiver_endpoint = *resolver.resolve(udp::v4(), "ntp.aliyun.com", "123").begin();
+        socket.connect(receiver_endpoint);
+
+        socket.send(asio::buffer(send_data));
+        size_t len = socket.receive(asio::buffer(recv_data));
+        if (len < 48) {
+            co_return tl::unexpected(BotError("Incomplete NTP response"));
         }
 
-        try {
-            std::string_view body = result.resp_body;
-            size_t start = body.find("<t>");
-            size_t end = body.find("</t>");
-            if (start == std::string_view::npos || end == std::string_view::npos || end <= start + 3) {
-                co_return tl::unexpected(BotError("Failed to parse server time XML"));
-            }
+        uint32_t sec = (recv_data[40] << 24) | (recv_data[41] << 16) | (recv_data[42] << 8) | recv_data[43];
+        uint32_t frac = (recv_data[44] << 24) | (recv_data[45] << 16) | (recv_data[46] << 8) | recv_data[47];
+        uint64_t ntp_time = (static_cast<uint64_t>(sec) << 32) | frac;
 
-            std::string_view ts_sv(body.data() + start + 3, end - start - 3);
-            long long ts = 0;
-            auto fc = std::from_chars(ts_sv.data(), ts_sv.data() + ts_sv.size(), ts);
-            if (fc.ec != std::errc() || fc.ptr != ts_sv.data() + ts_sv.size()) {
-                co_return tl::unexpected(BotError("Failed to parse server time"));
-            }
+        double ntp_seconds = static_cast<double>(ntp_time >> 32);
+        double fractional_part = static_cast<double>(ntp_time & 0xFFFFFFFF) / 4294967296.0;
+        double unix_time = ntp_seconds - NTP_UNIX_OFFSET + fractional_part;
 
-            auto tp = std::chrono::system_clock::from_time_t(static_cast<std::time_t>(ts));
-            co_return tp;
-        } catch (const std::exception& e) {
-            co_return tl::unexpected(BotError(fmt::format("Error parsing server time: {}", e.what())));
-        }
+        auto tp = std::chrono::system_clock::from_time_t(static_cast<std::time_t>(unix_time));
+        auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::duration<double>(fractional_part));
+        tp += ms;
+        co_return tp;
     }
 
     async_simple::coro::Lazy<Result<std::string>> get_verified_token(coro_http::coro_http_client& client,

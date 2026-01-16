@@ -8,9 +8,8 @@
 #include "../common/types.hpp"
 
 namespace Network {
-    async_simple::coro::Lazy<Result<void>> validate_token(coro_http::coro_http_client& client, const User& user);
-    async_simple::coro::Lazy<Result<std::chrono::system_clock::time_point>> get_server_time(
-        coro_http::coro_http_client& client);
+    async_simple::coro::Lazy<Result<void>> validate_token(const User& user);
+    async_simple::coro::Lazy<Result<std::chrono::system_clock::time_point>> get_server_time();
     async_simple::coro::Lazy<Result<std::string>> get_verified_token(coro_http::coro_http_client& client,
                                                                      const User& user);
     async_simple::coro::Lazy<Result<void>> reserve(coro_http::coro_http_client& client, const User& user,

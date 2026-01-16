@@ -67,12 +67,11 @@ int main() {
 
     async_simple::coro::syncAwait([&user_data = std::as_const(user_data)]() -> async_simple::coro::Lazy<void> {
         {
-            coro_http::coro_http_client client{};
+            coro_http::coro_http_client client1{}, client2{};
             LOG_INFO(logger, "Performing initial token validation and time synchronizing...");
-            
-            auto [validate_res, time_res] = co_await async_simple::coro::collectAll(
-                Network::validate_token(client, user_data), Network::get_server_time(client));
 
+            auto [validate_res, time_res] =
+                co_await async_simple::coro::collectAll(Network::validate_token(user_data), Network::get_server_time());
             if (!validate_res.available()) {
                 try {
                     std::rethrow_exception(validate_res.getException());
@@ -108,7 +107,6 @@ int main() {
                     LOG_INFO(logger, "Time is well synchronized (offset: {}ms).", offset.count());
                 }
             }
-
         };
 
         struct ReserveTask {
@@ -131,7 +129,7 @@ int main() {
         std::vector<async_simple::coro::Lazy<void>> tasks;
 
         // Settings
-        const int CAPTCHA_CONCURRENCY = 25;
+        const int CAPTCHA_CONCURRENCY = 20;
 
         for (int i = 0; i < CAPTCHA_CONCURRENCY; ++i) {
             tasks.push_back(Reservation::captcha_producer(user_data));
