@@ -10,6 +10,7 @@
 #include <simdjson.h>
 #include <asio.hpp>
 #include <asio/use_awaitable.hpp>
+#include <chrono>
 #include <nlohmann/json.hpp>
 #include <random>
 #include <string>
@@ -50,34 +51,46 @@ namespace Network {
     async_simple::coro::Lazy<Result<std::chrono::system_clock::time_point>> get_server_time() {
         using namespace asio::ip;
 
-        constexpr uint64_t NTP_UNIX_OFFSET = 2208988800ULL;
         std::array<uint8_t, 48> send_data{0x23}, recv_data{};
-        asio::io_context::executor_type executor = coro_io::get_global_executor()->get_asio_executor();
+        auto executor = coro_io::get_global_executor()->get_asio_executor();
 
         udp::resolver resolver(executor);
         udp::socket socket(executor, udp::v4());
 
-        udp::endpoint receiver_endpoint = *resolver.resolve(udp::v4(), "ntp.aliyun.com", "123").begin();
-        socket.connect(receiver_endpoint);
+        auto results = resolver.resolve(udp::v4(), "ntp.aliyun.com", "123");
+        if (results.empty()) {
+            co_return tl::unexpected(BotError("Failed to resolve NTP server"));
+        }
+        socket.connect(*results.begin());
 
+        auto t1 = std::chrono::system_clock::now();
         socket.send(asio::buffer(send_data));
         size_t len = socket.receive(asio::buffer(recv_data));
+        auto t4 = std::chrono::system_clock::now();
+
         if (len < 48) {
             co_return tl::unexpected(BotError("Incomplete NTP response"));
         }
 
-        uint32_t sec = (recv_data[40] << 24) | (recv_data[41] << 16) | (recv_data[42] << 8) | recv_data[43];
-        uint32_t frac = (recv_data[44] << 24) | (recv_data[45] << 16) | (recv_data[46] << 8) | recv_data[47];
-        uint64_t ntp_time = (static_cast<uint64_t>(sec) << 32) | frac;
+        auto get_ntp_tp = [](const uint8_t* data, int offset) {
+            uint32_t sec = (static_cast<uint32_t>(data[offset]) << 24) | (static_cast<uint32_t>(data[offset + 1]) << 16) |
+                           (static_cast<uint32_t>(data[offset + 2]) << 8) | static_cast<uint32_t>(data[offset + 3]);
+            uint32_t frac = (static_cast<uint32_t>(data[offset + 4]) << 24) |
+                            (static_cast<uint32_t>(data[offset + 5]) << 16) |
+                            (static_cast<uint32_t>(data[offset + 6]) << 8) | static_cast<uint32_t>(data[offset + 7]);
 
-        double ntp_seconds = static_cast<double>(ntp_time >> 32);
-        double fractional_part = static_cast<double>(ntp_time & 0xFFFFFFFF) / 4294967296.0;
-        double unix_time = ntp_seconds - NTP_UNIX_OFFSET + fractional_part;
+            constexpr uint64_t NTP_UNIX_OFFSET = 2208988800ULL;
+            auto s = std::chrono::seconds(sec - NTP_UNIX_OFFSET);
+            auto ns = std::chrono::nanoseconds((static_cast<uint64_t>(frac) * 1000000000ULL) >> 32);
+            return std::chrono::system_clock::time_point(
+                std::chrono::duration_cast<std::chrono::system_clock::duration>(s + ns));
+        };
 
-        auto tp = std::chrono::system_clock::from_time_t(static_cast<std::time_t>(unix_time));
-        auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::duration<double>(fractional_part));
-        tp += ms;
-        co_return tp;
+        auto t2 = get_ntp_tp(recv_data.data(), 32);  // Receive Timestamp
+        auto t3 = get_ntp_tp(recv_data.data(), 40);  // Transmit Timestamp
+
+        auto offset = ((t2 - t1) + (t3 - t4)) / 2;
+        co_return t4 + offset;
     }
 
     async_simple::coro::Lazy<Result<std::string>> get_verified_token(coro_http::coro_http_client& client,
