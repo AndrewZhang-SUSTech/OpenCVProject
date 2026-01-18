@@ -77,5 +77,5 @@ RUN micromamba run -n build_env cmake -B ./build -S . -G Ninja \
 
 FROM scratch
 
-COPY --from=windows_builder /project/build/bin/MyProject.exe /windows/
-COPY --from=linux_builder /project/build/bin/MyProject /linux/
+COPY --from=windows_builder /project/build/bin/SUSTechBadmintonReserver.exe /windows/
+COPY --from=linux_builder /project/build/bin/SUSTechBadmintonReserver /linux/

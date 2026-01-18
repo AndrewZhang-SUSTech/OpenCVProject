@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-SUSTechBadmintonReverser is a C++20 automated badminton court reservation system that interacts with a booking API. The system handles token validation, CAPTCHA solving using OpenCV, and concurrent reservation attempts using coroutines.
+SUSTechBadmintonReserver is a C++20 automated badminton court reservation system that interacts with a booking API. The system handles token validation, CAPTCHA solving using OpenCV, and concurrent reservation attempts using coroutines.
 
 ## Build System
 
@@ -28,9 +28,9 @@ cmake --build out/build/release
 cmake --build out/build/relwithdebinfo
 
 # Run main executable
-./out/build/debug/bin/MyProject
-./out/build/release/bin/MyProject
-.out/build/relwithdebinfo/bin/MyProject
+./out/build/debug/bin/SUSTechBadmintonReserver
+./out/build/release/bin/SUSTechBadmintonReserver
+./out/build/relwithdebinfo/bin/SUSTechBadmintonReserver
 
 # Run network benchmark test
 ./out/build/debug/network_benchmark [total_requests] [concurrency]

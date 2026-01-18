@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.28)
 
-project(MyProject LANGUAGES CXX)
+project(SUSTechBadmintonReserver LANGUAGES CXX)
 
 option(YLT_ENABLE_IO_URING "Enable io_uring for yalantinglibs" OFF)
 option(RESERVATION_SINGLETHREAD_ENABLED "Enable single-threaded reservation" OFF)
