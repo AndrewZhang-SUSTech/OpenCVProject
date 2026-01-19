@@ -39,6 +39,7 @@ RUN ln -s /usr/bin/make /usr/bin/mingw32-make
 WORKDIR /project
 COPY CMakeLists.txt .
 COPY src/ ./src/
+COPY tests ./tests/
 
 RUN cmake -B ./build -S . -G Ninja \
     -DCMAKE_BUILD_TYPE=Release \
@@ -51,7 +52,7 @@ RUN cmake -B ./build -S . -G Ninja \
     -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=NEVER \
     -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY \
     -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY && \
-    cmake --build ./build -j 2
+    cmake --build ./build --target SUSTechBadmintonReserver -j 2
 
 FROM registry.access.redhat.com/ubi7/ubi-minimal AS linux_builder
 
@@ -68,12 +69,13 @@ RUN micromamba create -n build_env -c conda-forge -y \
 WORKDIR /project
 COPY CMakeLists.txt .
 COPY src/ ./src/
+COPY tests ./tests/
 
 RUN micromamba run -n build_env cmake -B ./build -S . -G Ninja \
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_C_COMPILER=gcc \
     -DCMAKE_CXX_COMPILER=g++ && \
-    micromamba run -n build_env cmake --build ./build -j 2
+    micromamba run -n build_env cmake --build ./build --target SUSTechBadmintonReserver -j 2
 
 FROM scratch
 
