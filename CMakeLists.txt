@@ -12,7 +12,9 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 set_property(GLOBAL PROPERTY INTERPROCEDURAL_OPTIMIZATION_RELEASE TRUE)
 
-set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:DebugDLL>")
+if(MSVC)
+    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:DebugDLL>")
+endif()
 
 file(
   DOWNLOAD
@@ -21,6 +23,17 @@ file(
   EXPECTED_HASH SHA256=2020b4fc42dba44817983e06342e682ecfc3d2f484a581f11cc5731fbe4dce8a
 )
 include(${CMAKE_CURRENT_BINARY_DIR}/cmake/CPM.cmake)
+
+if(APPLE AND CMAKE_OSX_ARCHITECTURES MATCHES ";")
+    set(OPENCV_CPU_OPT "")
+elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(arm64|aarch64)")
+    set(OPENCV_CPU_OPT "CPU_BASELINE=DETECT") 
+else()
+    set(OPENCV_CPU_OPT 
+        "CPU_BASELINE=SSE3"
+        "CPU_DISPATCH=AVX2"
+    )
+endif()
 
 CPMAddPackage(
     NAME opencv
@@ -67,7 +80,7 @@ CPMAddPackage(
         "BUILD_PNG ON"
         "BUILD_ZLIB ON"
         "BUILD_WITH_STATIC_CRT OFF"
-        "CPU_BASELINE AVX2"
+        ${OPENCV_CPU_OPT}
         "OPENCV_GENERATE_SETUPVARS OFF"
         "OPENCV_FORCE_3RDPARTY_BUILD ON"
         "CV_TRACE OFF"
@@ -159,7 +172,6 @@ list(APPEND OpenCV_INCLUDE_DIRS
 target_link_libraries(BotCore PUBLIC
     OpenSSL::SSL
     OpenSSL::Crypto
-    OpenSSL::applink
     yalantinglibs::yalantinglibs
     nlohmann_json::nlohmann_json
     yaml-cpp::yaml-cpp
@@ -183,6 +195,10 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
 
 if(MSVC)
     target_link_options(${PROJECT_NAME} PRIVATE $<$<CONFIG:Release>:/DEBUG:NONE>)
+elseif(APPLE)
+    target_link_options(${PROJECT_NAME} PRIVATE 
+        $<$<CONFIG:Release>:-dead_strip>
+    )
 elseif(WIN32 AND (CMAKE_CXX_COMPILER_ID STREQUAL "Clang" OR CMAKE_CXX_COMPILER_ID STREQUAL "GNU"))
     target_link_options(${PROJECT_NAME} PRIVATE 
         $<$<CONFIG:Release>:-static -s>
@@ -202,6 +218,10 @@ target_link_libraries(network_benchmark PRIVATE BotCore yalantinglibs::yalanting
 
 if(MSVC)
     target_link_options(network_benchmark PRIVATE $<$<CONFIG:Release>:/DEBUG:NONE>)
+elseif(APPLE)
+    target_link_options(network_benchmark PRIVATE 
+        $<$<CONFIG:Release>:-dead_strip>
+    )
 elseif(WIN32 AND (CMAKE_CXX_COMPILER_ID STREQUAL "Clang" OR CMAKE_CXX_COMPILER_ID STREQUAL "GNU"))
     target_link_options(network_benchmark PRIVATE 
         $<$<CONFIG:Release>:-static -s>
@@ -215,4 +235,3 @@ else()
 endif()
 
 add_test(NAME NetworkBenchmark COMMAND network_benchmark)
-
