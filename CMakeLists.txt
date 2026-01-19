@@ -105,7 +105,7 @@ CPMAddPackage(
 
 CPMAddPackage(
     NAME json
-    URL https://github.com/nlohmann/json/releases/download/v3.12.0/json.tar.xz
+    URL https://github.com/nlohmann/json/archive/refs/tags/v3.12.0.tar.gz
 )
 
 CPMAddPackage(
