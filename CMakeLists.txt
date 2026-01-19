@@ -75,8 +75,7 @@ CPMAddPackage(
 
 CPMAddPackage(
     NAME openssl-cmake
-    GIT_REPOSITORY https://github.com/jimmy-park/openssl-cmake.git
-    GIT_TAG 3.6.0
+    URL https://github.com/jimmy-park/openssl-cmake/archive/refs/tags/3.6.0.tar.gz
     OPTIONS
         "BUILD_SHARED_LIBS OFF"
 )
@@ -93,16 +92,13 @@ CPMAddPackage(
 
 CPMAddPackage(
     NAME json
-    GIT_REPOSITORY https://github.com/nlohmann/json.git
-    GIT_TAG v3.12.0
-    OPTIONS
-        
+    URL https://github.com/nlohmann/json/releases/download/v3.12.0/json.tar.xz
 )
 
 CPMAddPackage(
     NAME fmt
-    GIT_REPOSITORY https://github.com/fmtlib/fmt.git
-    GIT_TAG 12.1.0
+    URL https://github.com/fmtlib/fmt/releases/download/12.1.0/fmt-12.1.0.zip
+    URL_HASH SHA256=695fd197fa5aff8fc67b5f2bbc110490a875cdf7a41686ac8512fb480fa8ada7
 )
 
 CPMAddPackage(
@@ -116,16 +112,14 @@ CPMAddPackage(
 
 CPMAddPackage(
     NAME Quill
-    GIT_REPOSITORY https://github.com/odygrd/quill.git
-    GIT_TAG v11.0.2
+    URL https://github.com/odygrd/quill/archive/refs/tags/v11.0.2.tar.gz
     OPTIONS
         "QUILL_FMT_EXTERNAL ON"
 )
 
 CPMAddPackage(
     NAME simdjson
-    GIT_REPOSITORY https://github.com/simdjson/simdjson.git
-    GIT_TAG v4.2.4
+    URL https://github.com/simdjson/simdjson/archive/refs/tags/v4.2.4.tar.gz
     OPTIONS
         "SIMDJSON_DISABLE_DEPRECATED_API ON"
 )
