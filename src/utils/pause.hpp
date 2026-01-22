@@ -1,8 +1,11 @@
 #include <fmt/core.h>
 #include <string_view>
+#include <cstdio>
+#include <quill/Backend.h>
 
 #if defined(_WIN32) || defined(_WIN64)
 #include <windows.h>
+#include <conio.h>
 #elif defined(__APPLE__)
 #include <libproc.h>
 #include <signal.h>
@@ -30,9 +33,10 @@ void smart_pause() noexcept {
 #if defined(_WIN32) || defined(_WIN64)
     DWORD processList[2];
     DWORD count = GetConsoleProcessList(processList, 2);
-    if (count <= 1) {
+    if (count != 2) {
+        quill::Backend::stop();
         fmt::println("Press any key to continue . . .");
-        system("pause");
+		_getch();
     }
 #elif defined(__APPLE__)
     pid_t ppid = getppid();

@@ -49,6 +49,7 @@ int main() {
         LOG_DEBUG(logger, "Logger initialized in main successfully");
     } else {
         fmt::println(stderr, "Logger initialization failed: {}\n", result.error().to_string());
+        smart_pause();
         return 1;
     }
 
@@ -64,6 +65,7 @@ int main() {
         } else {
             LOG_WARNING(logger, "Failed to generate template config: {}", gen_result.error().to_string());
         }
+        smart_pause();
         return 1;
     }
 
@@ -149,4 +151,5 @@ int main() {
     }());
 
     smart_pause();
+    return 0;
 }
