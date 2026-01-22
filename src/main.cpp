@@ -9,6 +9,7 @@
 #include <windows.h>
 #endif
 
+#include <utils/pause.hpp>
 #include "common/constants.hpp"
 #include "common/log.hpp"
 #include "common/types.hpp"
@@ -146,4 +147,6 @@ int main() {
         // Run all
         co_await async_simple::coro::collectAll(std::move(tasks));
     }());
+
+    smart_pause();
 }
