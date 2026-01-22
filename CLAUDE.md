@@ -13,13 +13,8 @@ This project uses CMake with CPM (CMake Package Manager) for dependency manageme
 ### Build Commands
 
 ```bash
-# Configure (Debug)
 cmake -B out/build/debug -DCMAKE_BUILD_TYPE=Debug
-
-# Configure (Release)
 cmake -B out/build/release -DCMAKE_BUILD_TYPE=Release
-
-# Configure (RelWithDebInfo) - recommended for profiling
 cmake -B out/build/relwithdebinfo -DCMAKE_BUILD_TYPE=RelWithDebInfo
 
 # Build
@@ -69,7 +64,7 @@ The codebase is organized into distinct modules under `src/`:
 
 4. **Reservation Logic** (`src/reservation/`)
    - `logic.hpp/cpp`: Orchestrates the reservation workflow
-   - Uses producer-consumer pattern with channels for CAPTCHA tokens
+   - Uses producer-consumer pattern with lock-free concurrent queue for CAPTCHA tokens
    - `captcha_producer()`: Continuously generates verified tokens
    - `reservation_worker()`: Consumes tokens and attempts reservations
    - Global `success_flag` atomic to coordinate workers
@@ -79,7 +74,7 @@ The codebase is organized into distinct modules under `src/`:
 
 6. **Common** (`src/common/`)
    - `types.hpp`: Core data structures (`User`, `BotError`, `Result<T>`)
-   - `log.hpp`: Logging macros (currently using fmt, Quill integration commented out)
+   - `log.hpp`: Logging macros using Quill logger
    - `constants.hpp`: Application constants
 
 ### Key Design Patterns
@@ -89,9 +84,9 @@ The codebase is organized into distinct modules under `src/`:
 **Async/Coroutines**: Heavy use of `async_simple::coro::Lazy<T>` for async operations. Main function uses `async_simple::coro::syncAwait()` to run coroutines synchronously.
 
 **Concurrency**:
-- Producer-consumer pattern using `coro_io::channel<std::string>` for CAPTCHA tokens
-- Channel capacity: 200 tokens
+- Producer-consumer pattern using `moodycamel::ConcurrentQueue<std::string>` (lock-free queue) for CAPTCHA tokens
 - Workers coordinate via `std::atomic_bool success_flag`
+- Multiple reservation workers can run concurrently, consuming tokens from the shared queue
 
 **Configuration**: User data loaded from `config.yml` with structure:
 ```yaml
@@ -106,13 +101,14 @@ time: array of datetime strings
 ## Dependencies
 
 Major dependencies (auto-fetched by CPM):
-- **yalantinglibs** (0.5.7): Async HTTP client with coroutine support
+- **yalantinglibs** (0.5.7): Async HTTP client with coroutine support, includes moodycamel::ConcurrentQueue
 - **OpenCV** (4.13.0): Image processing for CAPTCHA solving (minimal build: core, imgproc, imgcodecs)
 - **OpenSSL**: SSL/TLS support via openssl-cmake
 - **nlohmann/json** (3.12.0): JSON parsing
 - **fmt** (12.1.0): String formatting
 - **yaml-cpp** (0.8.0): YAML configuration parsing
 - **simdjson** (4.2.4): Fast JSON parsing
+- **Quill** (11.0.2): High-performance logging library
 - **async_simple**: Coroutine runtime
 
 ## Testing
