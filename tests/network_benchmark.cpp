@@ -17,7 +17,7 @@
 #include "../src/network/api_client.hpp"
 #include "quill/backend/BackendOptions.h"
 
-void init_logger() {
+void init_logger() noexcept {
     try {
         logger = quill::Frontend::create_or_get_logger(
             "Logger", quill::Frontend::create_or_get_sink<quill::ConsoleSink>("console_sink"),

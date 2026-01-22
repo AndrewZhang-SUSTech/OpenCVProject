@@ -5,7 +5,7 @@
 #include "../common/log.hpp"
 
 namespace Captcha {
-    Result<int64_t> solve(std::span<uint8_t> jigsaw_bytes, std::span<uint8_t> original_bytes) {
+    Result<int64_t> solve(std::span<uint8_t> jigsaw_bytes, std::span<uint8_t> original_bytes) noexcept {
         try {
             cv::Mat jigsaw_buf(1, (int)jigsaw_bytes.size(), CV_8UC1, jigsaw_bytes.data());
             cv::Mat jigsaw = cv::imdecode(jigsaw_buf, cv::IMREAD_UNCHANGED);

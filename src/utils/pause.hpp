@@ -1,11 +1,11 @@
 #include <fmt/core.h>
-#include <string_view>
-#include <cstdio>
 #include <quill/Backend.h>
+#include <cstdio>
+#include <string_view>
 
 #if defined(_WIN32) || defined(_WIN64)
-#include <windows.h>
 #include <conio.h>
+#include <windows.h>
 #elif defined(__APPLE__)
 #include <libproc.h>
 #include <signal.h>
@@ -15,14 +15,14 @@
 struct termios orig_termios;
 bool terminal_modified = false;
 
-void reset_terminal_mode() {
+void reset_terminal_mode() noexcept {
     if (terminal_modified) {
         tcsetattr(STDIN_FILENO, TCSANOW, &orig_termios);
         terminal_modified = false;
     }
 }
 
-void signal_handler(int signum) {
+void signal_handler(int signum) noexcept {
     reset_terminal_mode();
     std::_Exit(signum);
 }
@@ -36,7 +36,7 @@ void smart_pause() noexcept {
     if (count != 2) {
         quill::Backend::stop();
         fmt::println("Press any key to continue . . .");
-		_getch();
+        _getch();
     }
 #elif defined(__APPLE__)
     pid_t ppid = getppid();

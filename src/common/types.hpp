@@ -23,15 +23,19 @@ private:
     std::string message;
 
 public:
-    BotError(std::string_view msg, const std::source_location loc = std::source_location::current())
+    BotError(std::string_view msg, const std::source_location loc = std::source_location::current()) noexcept
         : location(loc), message(msg) {}
 
-    std::string to_string() const {
-        std::string_view file = location.file_name();
-        if (size_t pos = file.rfind("src"); pos != std::string_view::npos) {
-            file = file.substr(pos + 3);
+    std::string to_string() const noexcept {
+        try {
+            std::string_view file = location.file_name();
+            if (size_t pos = file.rfind("src"); pos != std::string_view::npos) {
+                file = file.substr(pos + 3);
+            }
+            return fmt::format("[.{}:{}] {}", file, location.line(), message);
+        } catch (...) {
+            return "Internal Error: Failed to format error message";
         }
-        return fmt::format("[.{}:{}] {}", file, location.line(), message);
     }
 };
 static_assert(std::is_nothrow_move_constructible<BotError>::value);

@@ -27,7 +27,7 @@ namespace YAML {
 }  // namespace YAML
 
 namespace Config {
-    Result<User> load_user_config(const std::string& path) {
+    Result<User> load_user_config(const std::string& path) noexcept {
         try {
             YAML::Node config = YAML::LoadFile(path);
             User user;
@@ -116,7 +116,7 @@ namespace Config {
         }
     }
 
-    Result<void> generate_template_config() {
+    Result<void> generate_template_config() noexcept {
         try {
             YAML::Emitter out;
             out << YAML::BeginMap;
