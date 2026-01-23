@@ -30,23 +30,45 @@ namespace Reservation {
             } else {
                 LOG_INFO(logger, "Immediate mode: Producer starting immediately.");
             }
+        } catch (const std::exception& e) {
+            LOG_CRITICAL(logger, "Producer initialization failed: {}", e.what());
+            co_return;
+        } catch (...) {
+            LOG_CRITICAL(logger, "Producer initialization failed with unknown error");
+            co_return;
+        }
 
-            coro_http::coro_http_client client;
-            while (!success_flag.load(std::memory_order_relaxed)) {
+        coro_http::coro_http_client client;
+        int retry_count = 0;
+        while (!success_flag.load(std::memory_order_relaxed)) {
+            bool has_error = false;
+            try {
                 auto result = co_await Network::get_verified_token(client, user);
                 if (result) {
                     captcha_queue.enqueue(std::move(result.value()));
                     LOG_DEBUG(logger, "Captcha solved and enqueued. Queue size approx: {}",
                               captcha_queue.size_approx());
+                    retry_count = 0;
                 } else {
                     LOG_DEBUG(logger, "Failed to solve captcha: {}", result.error().to_string());
                     co_await async_simple::coro::sleep(std::chrono::milliseconds(100));
                 }
+            } catch (const std::exception& e) {
+                LOG_ERROR(logger, "Producer iteration failed: {}", e.what());
+                has_error = true;
+            } catch (...) {
+                LOG_ERROR(logger, "Producer iteration failed with unknown error");
+                has_error = true;
             }
-        } catch (const std::exception& e) {
-            LOG_CRITICAL(logger, "Producer failed: {}", e.what());
-        } catch (...) {
-            LOG_CRITICAL(logger, "Producer failed with unknown error");
+
+            if (has_error) {
+                retry_count++;
+                if (retry_count >= 3) {
+                    LOG_CRITICAL(logger, "Producer failed 3 times in a row, exiting.");
+                    co_return;
+                }
+                co_await async_simple::coro::sleep(std::chrono::milliseconds(100));
+            }
         }
     }
 
@@ -54,12 +76,12 @@ namespace Reservation {
                                                       std::chrono::system_clock::time_point start_time,
                                                       std::chrono::system_clock::time_point end_time,
                                                       int court_index) noexcept {
+        std::chrono::system_clock::time_point stop_time;
         try {
             // Calculate target time: Today at 20:00:00 - 50ms
             // We just need to synchronize the action to 19:59:59.950 today.
 
             auto now = std::chrono::system_clock::now();
-            std::chrono::system_clock::time_point stop_time;
 
             if (user.is_scheduled_mode) {
                 std::time_t now_t = std::chrono::system_clock::to_time_t(now);
@@ -85,13 +107,23 @@ namespace Reservation {
                 LOG_INFO(logger, "Immediate mode: Worker starting immediately.");
                 stop_time = now + std::chrono::seconds(60);
             }
+        } catch (const std::exception& e) {
+            LOG_CRITICAL(logger, "Reservation worker initialization failed: {}", e.what());
+            co_return;
+        } catch (...) {
+            LOG_CRITICAL(logger, "Reservation worker initialization failed with unknown error");
+            co_return;
+        }
 
-            LOG_DEBUG(logger, "Worker started reservation sequence!");
+        LOG_DEBUG(logger, "Worker started reservation sequence!");
 
-            coro_http::coro_http_client client;
+        coro_http::coro_http_client client;
+        int retry_count = 0;
 
-            // Try to consume logic
-            while (!success_flag.load(std::memory_order_relaxed)) {
+        // Try to consume logic
+        while (!success_flag.load(std::memory_order_relaxed)) {
+            bool has_error = false;
+            try {
                 std::string verification;
                 if (captcha_queue.try_dequeue(verification)) {
                     auto result =
@@ -102,6 +134,7 @@ namespace Reservation {
                         co_return;
                     } else {
                         LOG_DEBUG(logger, "Reservation failed: {}", result.error().to_string());
+                        retry_count = 0;
                     }
                 } else {
                     co_await async_simple::coro::sleep(std::chrono::nanoseconds(100));
@@ -111,11 +144,21 @@ namespace Reservation {
                         co_return;
                     }
                 }
+            } catch (const std::exception& e) {
+                LOG_ERROR(logger, "Reservation worker iteration failed: {}", e.what());
+                has_error = true;
+            } catch (...) {
+                LOG_ERROR(logger, "Reservation worker iteration failed with unknown error");
+                has_error = true;
             }
-        } catch (const std::exception& e) {
-            LOG_CRITICAL(logger, "Reservation worker failed: {}", e.what());
-        } catch (...) {
-            LOG_CRITICAL(logger, "Reservation worker failed with unknown error");
+
+            if (has_error) {
+                retry_count++;
+                if (retry_count >= 3) {
+                    LOG_CRITICAL(logger, "Reservation worker failed 3 times in a row, exiting.");
+                    co_return;
+                }
+            }
         }
     }
 }  // namespace Reservation
